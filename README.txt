@@ -1,0 +1,3 @@
+Tailscale Connect brings private remote access to Homey Pro through your Tailscale network. It lets you manage the connection directly from Homey and makes it easier to monitor the tunnel state from within your smart home setup.
+
+The app is designed for local Homey Pro use and supports manual connection controls, status monitoring, Flow integration, and optional subnet routing for advanced network setups.
