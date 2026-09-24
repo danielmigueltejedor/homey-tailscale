@@ -10,5 +10,8 @@
   },
   "1.2.2": {
     "en": "Fix invisible app icon on dark brandColor; clarify Homey Pro 2019 is unsupported by Athom Python runtime; shrink package."
+  },
+  "1.2.3": {
+    "en": "Fix app icon: Homey requires black SVG on contrasting brandColor."
   }
 }

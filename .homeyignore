@@ -1,0 +1,18 @@
+# Keep Homey package lean and free of stray assets
+.git
+.homeybuild
+*.md
+LICENSE
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+tailscale.svg
+tailscale-light.svg
+assets/icon-nodes-dark.svg
+assets/icon-nodes-light.svg
+bin/**/VERSION
+bin/**/test-daemon.sh
+**/__pycache__
+**/*.pyc
+.DS_Store
+.env
+.venv
