@@ -1,1 +1,8 @@
-{}
+{
+  "settings.title": "Tailscale Connect",
+  "settings.accept_routes": "Accept routes advertised by other nodes",
+  "settings.accept_routes_help": "Required to receive subnet routes from a subnet router. Reconnect after changing.",
+  "settings.subnet_router": "Advertise subnet(s) from this Homey",
+  "settings.userspace_warning": "Userspace networking is required inside Homey. fakeRouter warnings in logs are expected.",
+  "device.not_connected": "Tailscale is not connected"
+}

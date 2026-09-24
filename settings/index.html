@@ -120,6 +120,17 @@
       margin-top: -2px;
     }
 
+    .warn-box {
+      margin-top: 14px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 14px;
+      padding: 14px 16px;
+      color: #92400e;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
     input[type="text"],
     input[type="password"] {
       width: 100%;
@@ -331,34 +342,34 @@
 <body>
   <div class="container">
     <div class="hero">
-      <div class="pill">Nodalia · Tailscale for Homey</div>
-      <h1>Tailscale for Homey</h1>
-      <p>
-        Panel de control para conectar Homey a tu tailnet, anunciar subredes y supervisar el estado en tiempo real.
+      <div class="pill" data-i18n="pill">Nodalia · Tailscale for Homey</div>
+      <h1 data-i18n="title">Tailscale for Homey</h1>
+      <p data-i18n="hero">
+        Control panel to connect Homey to your tailnet, advertise subnets, and monitor tunnel status in real time.
       </p>
     </div>
 
     <div class="card">
-      <h2 class="section-title">Estado actual</h2>
-      <p class="section-subtitle">
-        Vista rápida del estado del túnel y de la identidad actual del nodo.
+      <h2 class="section-title" data-i18n="status_title">Current status</h2>
+      <p class="section-subtitle" data-i18n="status_sub">
+        Quick view of the tunnel state and this node's identity on the tailnet.
       </p>
 
       <div class="status-banner">
         <div id="stateDot" class="dot"></div>
         <div class="status-main">
-          <div id="stateTitle" class="status-title">Sin inicializar</div>
-          <div id="stateSub" class="status-sub">Esperando datos de la app...</div>
+          <div id="stateTitle" class="status-title">-</div>
+          <div id="stateSub" class="status-sub">-</div>
         </div>
       </div>
 
       <div class="status-grid">
         <div class="stat">
-          <div class="stat-label">Backend</div>
+          <div class="stat-label" data-i18n="lbl_backend">Backend</div>
           <div id="backendState" class="stat-value">-</div>
         </div>
         <div class="stat">
-          <div class="stat-label">Hostname</div>
+          <div class="stat-label" data-i18n="lbl_hostname">Hostname</div>
           <div id="tailnetHostname" class="stat-value">-</div>
         </div>
         <div class="stat">
@@ -377,56 +388,63 @@
           <div id="dnsName" class="stat-value">-</div>
         </div>
         <div class="stat">
-          <div class="stat-label">Online</div>
+          <div class="stat-label" data-i18n="lbl_online">Online</div>
           <div id="online" class="stat-value">-</div>
         </div>
         <div class="stat">
-          <div class="stat-label">Accept Routes</div>
+          <div class="stat-label" data-i18n="lbl_accept_routes">Accept routes</div>
           <div id="acceptRoutesView" class="stat-value">-</div>
         </div>
         <div class="stat">
-          <div class="stat-label">Subnet Router</div>
+          <div class="stat-label" data-i18n="lbl_subnet_router">Subnet router</div>
           <div id="subnetRouterView" class="stat-value">-</div>
         </div>
       </div>
 
-      <div class="status-box" id="statusText">Sin estado todavía.</div>
+      <div class="status-grid" style="margin-top: 14px;">
+        <div class="stat" style="grid-column: 1 / -1;">
+          <div class="stat-label" data-i18n="lbl_accepted_routes">Accepted subnet routes</div>
+          <div id="acceptedRoutesView" class="stat-value">-</div>
+        </div>
+      </div>
+
+      <div class="status-box" id="statusText">-</div>
     </div>
 
     <div class="card">
-      <h2 class="section-title">Control</h2>
-      <p class="section-subtitle">
-        Acciones manuales sobre Tailscale sin necesidad de reiniciar la app.
+      <h2 class="section-title" data-i18n="control_title">Control</h2>
+      <p class="section-subtitle" data-i18n="control_sub">
+        Manual Tailscale actions without restarting the app.
       </p>
 
       <div class="actions">
-        <button id="btnConnect" class="btn-primary">Conectar</button>
-        <button id="btnDisconnect" class="btn-danger">Desconectar</button>
-        <button id="btnReconnect" class="btn-secondary">Reconectar</button>
-        <button id="btnRefresh" class="btn-secondary">Refrescar estado</button>
+        <button id="btnConnect" class="btn-primary" data-i18n="btn_connect">Connect</button>
+        <button id="btnDisconnect" class="btn-danger" data-i18n="btn_disconnect">Disconnect</button>
+        <button id="btnReconnect" class="btn-secondary" data-i18n="btn_reconnect">Reconnect</button>
+        <button id="btnRefresh" class="btn-secondary" data-i18n="btn_refresh">Refresh status</button>
       </div>
     </div>
 
     <div class="card">
-      <h2 class="section-title">Conexión</h2>
-      <p class="section-subtitle">
-        Ajustes básicos para autenticar el Homey en Tailscale y definir cómo se presenta dentro del tailnet.
+      <h2 class="section-title" data-i18n="conn_title">Connection</h2>
+      <p class="section-subtitle" data-i18n="conn_sub">
+        Basic settings to authenticate Homey on Tailscale and how it appears on the tailnet.
       </p>
 
       <div class="grid">
         <div class="field">
-          <label for="auth_key">Auth key</label>
+          <label for="auth_key" data-i18n="lbl_auth_key">Auth key</label>
           <input id="auth_key" type="password" placeholder="tskey-..." />
-          <div class="help">
-            Usa una key de prueba o reusable. No se mostrará en los logs.
+          <div class="help" data-i18n="help_auth_key">
+            Use a reusable or ephemeral auth key from the Tailscale admin console. It is never printed in logs.
           </div>
         </div>
 
         <div class="field">
-          <label for="hostname">Hostname</label>
+          <label for="hostname" data-i18n="lbl_hostname_field">Hostname</label>
           <input id="hostname" type="text" placeholder="homey-pro" />
-          <div class="help">
-            Nombre con el que aparecerá el nodo dentro del tailnet.
+          <div class="help" data-i18n="help_hostname">
+            Name this node will use on the tailnet.
           </div>
         </div>
       </div>
@@ -435,9 +453,9 @@
         <label class="toggle">
           <input id="auto_connect" type="checkbox" />
           <div class="toggle-text">
-            <div class="toggle-title">Conectar automáticamente al arrancar</div>
-            <div class="toggle-desc">
-              Ejecuta <code>tailscale up</code> automáticamente cuando la app arranca.
+            <div class="toggle-title" data-i18n="tog_auto_title">Connect automatically on start</div>
+            <div class="toggle-desc" data-i18n="tog_auto_desc">
+              Runs <code>tailscale up</code> automatically when the app starts.
             </div>
           </div>
         </label>
@@ -445,37 +463,41 @@
         <label class="toggle">
           <input id="accept_routes" type="checkbox" />
           <div class="toggle-text">
-            <div class="toggle-title">Aceptar rutas anunciadas por otros nodos</div>
-            <div class="toggle-desc">
-              Permite a Homey usar rutas exportadas por subnet routers o nodos que ofrezcan salida.
+            <div class="toggle-title" data-i18n="tog_accept_title">Accept routes advertised by other nodes</div>
+            <div class="toggle-desc" data-i18n="tog_accept_desc">
+              Required to receive subnet routes (e.g. <code>192.168.3.0/24</code>) from a subnet router. After changing this, click Reconnect.
             </div>
           </div>
         </label>
       </div>
+
+      <div class="warn-box" data-i18n="warn_userspace">
+        This app runs Tailscale in userspace networking mode (required inside Homey). Peer-to-peer access to Homey's Tailscale IP works. Kernel route installation is not available (<code>fakeRouter.Set: not implemented</code> in logs is expected). Enable Accept routes and check “Accepted subnet routes” below after reconnecting.
+      </div>
     </div>
 
     <div class="card">
-      <h2 class="section-title">Subnet router</h2>
-      <p class="section-subtitle">
-        Haz que este Homey anuncie una o varias subredes al tailnet.
+      <h2 class="section-title" data-i18n="subnet_title">Subnet router</h2>
+      <p class="section-subtitle" data-i18n="subnet_sub">
+        Make this Homey advertise one or more local subnets to the tailnet.
       </p>
 
       <div class="grid-1">
         <label class="toggle">
           <input id="enable_subnet_router" type="checkbox" />
           <div class="toggle-text">
-            <div class="toggle-title">Anunciar subred(es) desde este Homey</div>
-            <div class="toggle-desc">
-              Añade <code>--advertise-routes</code> al conectar. Luego aprueba la ruta en la consola de Tailscale si hace falta.
+            <div class="toggle-title" data-i18n="tog_adv_title">Advertise subnet(s) from this Homey</div>
+            <div class="toggle-desc" data-i18n="tog_adv_desc">
+              Adds <code>--advertise-routes</code> on connect. Approve the route in the Tailscale admin console afterwards.
             </div>
           </div>
         </label>
 
         <div class="field">
-          <label for="advertise_routes">Subred(es) a anunciar</label>
+          <label for="advertise_routes" data-i18n="lbl_advertise">Subnet(s) to advertise</label>
           <input id="advertise_routes" type="text" placeholder="192.168.1.0/24" />
-          <div class="help">
-            Formato CIDR. Si son varias, sepáralas por comas. Ejemplo:
+          <div class="help" data-i18n="help_advertise">
+            CIDR format. Separate multiple with commas. Example:
             <code>192.168.1.0/24,192.168.50.0/24</code>
           </div>
         </div>
@@ -483,20 +505,161 @@
     </div>
 
     <div class="card">
-      <h2 class="section-title">Guardar configuración</h2>
-      <p class="section-subtitle">
-        Guarda los cambios. Después puedes conectar manualmente o dejar que la app lo haga sola al arrancar.
+      <h2 class="section-title" data-i18n="save_title">Save configuration</h2>
+      <p class="section-subtitle" data-i18n="save_sub">
+        Save your changes. Then connect manually, or let the app connect on start if auto-connect is enabled.
       </p>
 
       <div class="actions">
-        <button id="save" class="btn-primary">Guardar ajustes</button>
-        <div class="inline-note">Para aplicar cambios sensibles, usa “Reconectar”.</div>
+        <button id="save" class="btn-primary" data-i18n="btn_save">Save settings</button>
+        <div class="inline-note" data-i18n="save_note">To apply route / hostname changes, use Reconnect.</div>
       </div>
     </div>
   </div>
 
   <script>
+    const I18N = {
+      en: {
+        pill: 'Nodalia · Tailscale for Homey',
+        title: 'Tailscale for Homey',
+        hero: 'Control panel to connect Homey to your tailnet, advertise subnets, and monitor tunnel status in real time.',
+        status_title: 'Current status',
+        status_sub: 'Quick view of the tunnel state and this node’s identity on the tailnet.',
+        lbl_backend: 'Backend',
+        lbl_hostname: 'Hostname',
+        lbl_online: 'Online',
+        lbl_accept_routes: 'Accept routes',
+        lbl_subnet_router: 'Subnet router',
+        lbl_accepted_routes: 'Accepted subnet routes',
+        control_title: 'Control',
+        control_sub: 'Manual Tailscale actions without restarting the app.',
+        btn_connect: 'Connect',
+        btn_disconnect: 'Disconnect',
+        btn_reconnect: 'Reconnect',
+        btn_refresh: 'Refresh status',
+        conn_title: 'Connection',
+        conn_sub: 'Basic settings to authenticate Homey on Tailscale and how it appears on the tailnet.',
+        lbl_auth_key: 'Auth key',
+        help_auth_key: 'Use a reusable or ephemeral auth key from the Tailscale admin console. It is never printed in logs.',
+        lbl_hostname_field: 'Hostname',
+        help_hostname: 'Name this node will use on the tailnet.',
+        tog_auto_title: 'Connect automatically on start',
+        tog_auto_desc: 'Runs <code>tailscale up</code> automatically when the app starts.',
+        tog_accept_title: 'Accept routes advertised by other nodes',
+        tog_accept_desc: 'Required to receive subnet routes (e.g. <code>192.168.3.0/24</code>) from a subnet router. After changing this, click Reconnect.',
+        warn_userspace: 'This app runs Tailscale in userspace networking mode (required inside Homey). Peer-to-peer access to Homey’s Tailscale IP works. Kernel route installation is not available (<code>fakeRouter.Set: not implemented</code> in logs is expected). Enable Accept routes and check “Accepted subnet routes” after reconnecting.',
+        subnet_title: 'Subnet router',
+        subnet_sub: 'Make this Homey advertise one or more local subnets to the tailnet.',
+        tog_adv_title: 'Advertise subnet(s) from this Homey',
+        tog_adv_desc: 'Adds <code>--advertise-routes</code> on connect. Approve the route in the Tailscale admin console afterwards.',
+        lbl_advertise: 'Subnet(s) to advertise',
+        help_advertise: 'CIDR format. Separate multiple with commas. Example: <code>192.168.1.0/24,192.168.50.0/24</code>',
+        save_title: 'Save configuration',
+        save_sub: 'Save your changes. Then connect manually, or let the app connect on start if auto-connect is enabled.',
+        btn_save: 'Save settings',
+        save_note: 'To apply route / hostname changes, use Reconnect.',
+        state_running: 'Connected',
+        state_connecting: 'Connecting',
+        state_starting: 'Starting',
+        state_needs_login: 'Needs login',
+        state_disconnected: 'Disconnected',
+        state_error: 'Error',
+        state_unknown: 'Unknown',
+        state_daemon_running: 'Daemon running',
+        no_status: 'No status yet.',
+        waiting: 'Waiting for app data...',
+        yes: 'Yes',
+        no: 'No',
+        on: 'On',
+        off: 'Off',
+        saved: 'Settings saved',
+        err_status: 'Error fetching status: ',
+        err_connect: 'Connect error: ',
+        err_disconnect: 'Disconnect error: ',
+        err_reconnect: 'Reconnect error: ',
+        err_refresh: 'Refresh error: '
+      },
+      es: {
+        pill: 'Nodalia · Tailscale for Homey',
+        title: 'Tailscale for Homey',
+        hero: 'Panel de control para conectar Homey a tu tailnet, anunciar subredes y supervisar el estado en tiempo real.',
+        status_title: 'Estado actual',
+        status_sub: 'Vista rápida del estado del túnel y de la identidad actual del nodo.',
+        lbl_backend: 'Backend',
+        lbl_hostname: 'Hostname',
+        lbl_online: 'Online',
+        lbl_accept_routes: 'Aceptar rutas',
+        lbl_subnet_router: 'Subnet router',
+        lbl_accepted_routes: 'Rutas de subred aceptadas',
+        control_title: 'Control',
+        control_sub: 'Acciones manuales sobre Tailscale sin reiniciar la app.',
+        btn_connect: 'Conectar',
+        btn_disconnect: 'Desconectar',
+        btn_reconnect: 'Reconectar',
+        btn_refresh: 'Refrescar estado',
+        conn_title: 'Conexión',
+        conn_sub: 'Ajustes básicos para autenticar Homey en Tailscale y definir cómo se presenta en el tailnet.',
+        lbl_auth_key: 'Auth key',
+        help_auth_key: 'Usa una key reutilizable o efímera de la consola de Tailscale. No se muestra en los logs.',
+        lbl_hostname_field: 'Hostname',
+        help_hostname: 'Nombre con el que aparecerá el nodo dentro del tailnet.',
+        tog_auto_title: 'Conectar automáticamente al arrancar',
+        tog_auto_desc: 'Ejecuta <code>tailscale up</code> automáticamente cuando la app arranca.',
+        tog_accept_title: 'Aceptar rutas anunciadas por otros nodos',
+        tog_accept_desc: 'Necesario para recibir rutas de subred (p. ej. <code>192.168.3.0/24</code>) de un subnet router. Tras cambiarlo, pulsa Reconectar.',
+        warn_userspace: 'Esta app ejecuta Tailscale en modo userspace (obligatorio dentro de Homey). El acceso peer-to-peer a la IP Tailscale de Homey funciona. No hay instalación de rutas en el kernel (<code>fakeRouter.Set: not implemented</code> en los logs es normal). Activa Aceptar rutas y revisa “Rutas de subred aceptadas” tras reconectar.',
+        subnet_title: 'Subnet router',
+        subnet_sub: 'Haz que este Homey anuncie una o varias subredes al tailnet.',
+        tog_adv_title: 'Anunciar subred(es) desde este Homey',
+        tog_adv_desc: 'Añade <code>--advertise-routes</code> al conectar. Luego aprueba la ruta en la consola de Tailscale.',
+        lbl_advertise: 'Subred(es) a anunciar',
+        help_advertise: 'Formato CIDR. Si son varias, sepáralas por comas. Ejemplo: <code>192.168.1.0/24,192.168.50.0/24</code>',
+        save_title: 'Guardar configuración',
+        save_sub: 'Guarda los cambios. Después puedes conectar manualmente o dejar que la app lo haga al arrancar.',
+        btn_save: 'Guardar ajustes',
+        save_note: 'Para aplicar cambios de rutas / hostname, usa Reconectar.',
+        state_running: 'Conectado',
+        state_connecting: 'Conectando',
+        state_starting: 'Iniciando',
+        state_needs_login: 'Necesita login',
+        state_disconnected: 'Desconectado',
+        state_error: 'Error',
+        state_unknown: 'Desconocido',
+        state_daemon_running: 'Daemon activo',
+        no_status: 'Sin estado todavía.',
+        waiting: 'Esperando datos de la app...',
+        yes: 'Sí',
+        no: 'No',
+        on: 'Activado',
+        off: 'Desactivado',
+        saved: 'Configuración guardada',
+        err_status: 'Error consultando estado: ',
+        err_connect: 'Error al conectar: ',
+        err_disconnect: 'Error al desconectar: ',
+        err_reconnect: 'Error al reconectar: ',
+        err_refresh: 'Error al refrescar: '
+      }
+    };
+
+    let t = I18N.en;
+
+    function applyI18n(lang) {
+      t = I18N[lang] || I18N.en;
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (t[key]) el.innerHTML = t[key];
+      });
+    }
+
     function onHomeyReady(Homey) {
+      Homey.getLanguage((err, language) => {
+        const lang = (!err && language && String(language).toLowerCase().startsWith('es')) ? 'es' : 'en';
+        applyI18n(lang);
+        boot(Homey);
+      });
+    }
+
+    function boot(Homey) {
       const authKeyEl = document.getElementById('auth_key');
       const hostnameEl = document.getElementById('hostname');
       const autoConnectEl = document.getElementById('auto_connect');
@@ -521,73 +684,73 @@
       const onlineEl = document.getElementById('online');
       const acceptRoutesViewEl = document.getElementById('acceptRoutesView');
       const subnetRouterViewEl = document.getElementById('subnetRouterView');
+      const acceptedRoutesViewEl = document.getElementById('acceptedRoutesView');
       const statusTextEl = document.getElementById('statusText');
 
+      stateTitleEl.textContent = t.state_unknown;
+      stateSubEl.textContent = t.waiting;
+      statusTextEl.textContent = t.no_status;
+
       function setBusy(isBusy) {
-        [
-          saveEl,
-          btnConnectEl,
-          btnDisconnectEl,
-          btnReconnectEl,
-          btnRefreshEl
-        ].forEach(el => el.disabled = isBusy);
+        [saveEl, btnConnectEl, btnDisconnectEl, btnReconnectEl, btnRefreshEl]
+          .forEach(el => el.disabled = isBusy);
       }
 
       function prettyState(state) {
         const map = {
-          running: 'Conectado',
-          connecting: 'Conectando',
-          starting: 'Iniciando',
-          needs_login: 'Necesita login',
-          disconnected: 'Desconectado',
-          error: 'Error',
-          unknown: 'Desconocido',
-          daemon_running: 'Daemon activo'
+          running: t.state_running,
+          connecting: t.state_connecting,
+          starting: t.state_starting,
+          needs_login: t.state_needs_login,
+          disconnected: t.state_disconnected,
+          error: t.state_error,
+          unknown: t.state_unknown,
+          daemon_running: t.state_daemon_running
         };
-        return map[state] || state || 'Desconocido';
+        return map[state] || state || t.state_unknown;
       }
 
       function renderStatus(data) {
         const runtimeState = data.runtime_state || 'unknown';
         stateDotEl.className = 'dot ' + runtimeState;
         stateTitleEl.textContent = prettyState(runtimeState);
-        stateSubEl.textContent = data.last_status_text || 'Sin estado todavía.';
+        stateSubEl.textContent = data.last_status_text || t.no_status;
 
         backendStateEl.textContent = data.backend_state || '-';
         tailnetHostnameEl.textContent = data.tailnet_hostname || '-';
         ipv4El.textContent = data.tailscale_ipv4 || '-';
         ipv6El.textContent = data.tailscale_ipv6 || '-';
         dnsNameEl.textContent = data.tailnet_dns_name || '-';
-        onlineEl.textContent = typeof data.tailnet_online === 'boolean' ? (data.tailnet_online ? 'Sí' : 'No') : '-';
-        acceptRoutesViewEl.textContent = data.accept_routes ? 'Activado' : 'Desactivado';
+        onlineEl.textContent = typeof data.tailnet_online === 'boolean'
+          ? (data.tailnet_online ? t.yes : t.no)
+          : '-';
+        acceptRoutesViewEl.textContent = data.accept_routes ? t.on : t.off;
         subnetRouterViewEl.textContent = data.enable_subnet_router
-          ? (data.advertise_routes || 'Activado')
-          : 'Desactivado';
+          ? (data.advertise_routes || t.on)
+          : t.off;
 
-        statusTextEl.textContent = data.last_status_text || 'Sin estado todavía.';
+        const accepted = data.accepted_routes || [];
+        acceptedRoutesViewEl.textContent = accepted.length ? accepted.join(', ') : '-';
+
+        statusTextEl.textContent = data.last_status_text || t.no_status;
       }
 
       function loadSettings() {
         Homey.get('auth_key', (err, value) => {
           if (!err && value) authKeyEl.value = value;
         });
-
         Homey.get('hostname', (err, value) => {
           hostnameEl.value = value || 'homey-pro';
         });
-
         Homey.get('auto_connect', (err, value) => {
           autoConnectEl.checked = !!value;
         });
-
         Homey.get('accept_routes', (err, value) => {
           acceptRoutesEl.checked = !!value;
         });
-
         Homey.get('enable_subnet_router', (err, value) => {
           enableSubnetRouterEl.checked = !!value;
         });
-
         Homey.get('advertise_routes', (err, value) => {
           advertiseRoutesEl.value = value || '';
         });
@@ -596,7 +759,7 @@
       function loadRuntimeStatus() {
         Homey.api('GET', '/status', null, (err, result) => {
           if (err) {
-            statusTextEl.textContent = 'Error consultando estado: ' + (err.message || err.toString());
+            statusTextEl.textContent = t.err_status + (err.message || err.toString());
             return;
           }
           renderStatus(result);
@@ -610,7 +773,7 @@
         Homey.set('accept_routes', acceptRoutesEl.checked, () => {});
         Homey.set('enable_subnet_router', enableSubnetRouterEl.checked, () => {});
         Homey.set('advertise_routes', advertiseRoutesEl.value || '', () => {});
-        Homey.alert('Configuración guardada');
+        Homey.alert(t.saved);
         loadRuntimeStatus();
       });
 
@@ -619,7 +782,7 @@
         Homey.api('POST', '/connect', {}, (err, result) => {
           setBusy(false);
           if (err) {
-            Homey.alert('Error al conectar: ' + (err.message || err.toString()));
+            Homey.alert(t.err_connect + (err.message || err.toString()));
             return;
           }
           loadRuntimeStatus();
@@ -631,7 +794,7 @@
         Homey.api('POST', '/disconnect', {}, (err, result) => {
           setBusy(false);
           if (err) {
-            Homey.alert('Error al desconectar: ' + (err.message || err.toString()));
+            Homey.alert(t.err_disconnect + (err.message || err.toString()));
             return;
           }
           loadRuntimeStatus();
@@ -643,7 +806,7 @@
         Homey.api('POST', '/reconnect', {}, (err, result) => {
           setBusy(false);
           if (err) {
-            Homey.alert('Error al reconectar: ' + (err.message || err.toString()));
+            Homey.alert(t.err_reconnect + (err.message || err.toString()));
             return;
           }
           loadRuntimeStatus();
@@ -655,14 +818,14 @@
         Homey.api('POST', '/refresh', {}, (err, result) => {
           setBusy(false);
           if (err) {
-            Homey.alert('Error al refrescar: ' + (err.message || err.toString()));
+            Homey.alert(t.err_refresh + (err.message || err.toString()));
             return;
           }
           renderStatus(result);
         });
       });
 
-      Homey.on('tailscale_status_changed', payload => {
+      Homey.on('tailscale_status_changed', () => {
         loadRuntimeStatus();
       });
 

@@ -4,7 +4,41 @@ import subprocess
 import platform
 import os
 import json
+import ipaddress
 from typing import Any
+
+
+def _as_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
+def _is_subnet_route(cidr: str) -> bool:
+    """True for advertised LAN/subnet routes, false for the node Tailscale addresses."""
+    try:
+        net = ipaddress.ip_network(cidr, strict=False)
+    except ValueError:
+        return False
+
+    if net.version == 4 and net.prefixlen >= 32:
+        return False
+    if net.version == 6 and net.prefixlen >= 128:
+        return False
+
+    # Tailscale CGNAT / ULA node addresses are not "accepted subnet routes"
+    if net.version == 4 and net.network_address in ipaddress.ip_network("100.64.0.0/10"):
+        return False
+    if net.version == 6 and str(net.network_address).startswith("fd7a:115c:a1e0:"):
+        return False
+
+    return True
 
 
 class App(app.App):
@@ -15,13 +49,23 @@ class App(app.App):
 
         self.auth_key = self.homey.settings.get("auth_key") or ""
         self.hostname = self.homey.settings.get("hostname") or "homey-pro"
-        self.auto_connect = bool(self.homey.settings.get("auto_connect"))
-        self.accept_routes = bool(self.homey.settings.get("accept_routes"))
-        self.enable_subnet_router = bool(self.homey.settings.get("enable_subnet_router"))
+        self.auto_connect = _as_bool(self.homey.settings.get("auto_connect"))
+        self.accept_routes = _as_bool(self.homey.settings.get("accept_routes"))
+        self.enable_subnet_router = _as_bool(self.homey.settings.get("enable_subnet_router"))
         self.advertise_routes = (self.homey.settings.get("advertise_routes") or "").strip()
 
-        self.tailscaled_path = "/app/bin/aarch64/tailscaled"
-        self.tailscale_path = "/app/bin/aarch64/tailscale"
+        arch = platform.machine().lower()
+        if arch in ("aarch64", "arm64"):
+            bin_arch = "aarch64"
+        else:
+            bin_arch = "aarch64"
+            self.error(
+                f"Unsupported CPU architecture '{arch}'. "
+                "This app currently ships aarch64 binaries (Homey Pro Early 2023+)."
+            )
+
+        self.tailscaled_path = f"/app/bin/{bin_arch}/tailscaled"
+        self.tailscale_path = f"/app/bin/{bin_arch}/tailscale"
 
         self.state_dir = "/tmp/tailscale-homey"
         self.state_path = f"{self.state_dir}/tailscaled.state"
@@ -52,19 +96,19 @@ class App(app.App):
         self._flow_refresh.register_run_listener(self._flow_refresh_listener)
         self._flow_is_connected.register_run_listener(self._flow_is_connected_listener)
 
-        self.log("=== INICIO Tailscale for Homey ===")
-        self.log(f"Sistema detectado: {platform.system()} {platform.release()}")
-        self.log(f"Arquitectura detectada: {platform.machine()}")
-        self.log(f"Hostname configurado: {self.hostname}")
+        self.log("=== Tailscale for Homey starting ===")
+        self.log(f"OS: {platform.system()} {platform.release()}")
+        self.log(f"Architecture: {platform.machine()}")
+        self.log(f"Hostname: {self.hostname}")
         self.log(f"Auto connect: {self.auto_connect}")
         self.log(f"Accept routes: {self.accept_routes}")
         self.log(f"Enable subnet router: {self.enable_subnet_router}")
         self.log(f"Advertise routes: {self.advertise_routes}")
 
         if self.enable_subnet_router and not self.advertise_routes:
-            self.log("Subnet router activado pero sin rutas configuradas; no se anunciarán subredes")
+            self.log("Subnet router enabled but no routes configured; nothing will be advertised")
 
-        await self._save_status_text("Iniciando tailscaled...")
+        await self._save_status_text("Starting tailscaled...")
         await self._start_daemon()
 
         if self.auto_connect and self.auth_key:
@@ -72,11 +116,42 @@ class App(app.App):
         else:
             await self.api_refresh()
 
+    def _reload_settings(self) -> None:
+        self.auth_key = self.homey.settings.get("auth_key") or ""
+        self.hostname = self.homey.settings.get("hostname") or "homey-pro"
+        self.accept_routes = _as_bool(self.homey.settings.get("accept_routes"))
+        self.enable_subnet_router = _as_bool(self.homey.settings.get("enable_subnet_router"))
+        self.advertise_routes = (self.homey.settings.get("advertise_routes") or "").strip()
+
+    def _build_up_cmd(self) -> list[str]:
+        """Build `tailscale up` with explicit prefs so reconnect always applies UI toggles."""
+        up_cmd = [
+            self.tailscale_path,
+            f"--socket={self.socket_path}",
+            "up",
+            f"--auth-key={self.auth_key}",
+            f"--hostname={self.hostname}",
+            "--accept-dns=false",
+            f"--accept-routes={'true' if self.accept_routes else 'false'}",
+        ]
+
+        if self.enable_subnet_router and self.advertise_routes:
+            cleaned = ",".join(
+                part.strip() for part in self.advertise_routes.split(",") if part.strip()
+            )
+            up_cmd.append(f"--advertise-routes={cleaned}")
+        else:
+            # Clear any previously advertised routes when the toggle is off
+            up_cmd.append("--advertise-routes=")
+
+        return up_cmd
+
     async def _start_daemon(self) -> None:
         if self.proc and self.proc.poll() is None:
-            self.log("tailscaled ya está en ejecución")
+            self.log("tailscaled already running")
             return
 
+        # Homey apps cannot create a kernel TUN; userspace netstack + local proxies.
         cmd = [
             self.tailscaled_path,
             "--tun=userspace-networking",
@@ -95,8 +170,8 @@ class App(app.App):
             env=os.environ.copy(),
         )
 
-        self.log(f"PID tailscaled: {self.proc.pid}")
-        await self._set_runtime_state("starting", "Iniciando tailscaled...")
+        self.log(f"tailscaled PID: {self.proc.pid}")
+        await self._set_runtime_state("starting", "Starting tailscaled...")
 
         asyncio.create_task(self._read_stdout())
         asyncio.create_task(self._read_stderr())
@@ -106,17 +181,17 @@ class App(app.App):
         await asyncio.sleep(5)
 
         if not self.proc:
-            await self._set_runtime_state("error", "No hay proceso tailscaled")
+            await self._set_runtime_state("error", "No tailscaled process")
             return
 
         rc = self.proc.poll()
         if rc is None:
-            self.log("tailscaled sigue vivo tras 5 segundos")
+            self.log("tailscaled still alive after 5 seconds")
             await self.homey.api.realtime("tailscale_status_changed", {
                 "state": "daemon_running"
             })
         else:
-            msg = f"tailscaled terminó demasiado pronto con código {rc}"
+            msg = f"tailscaled exited too early with code {rc}"
             self.error(msg)
             await self._set_runtime_state("error", msg)
 
@@ -130,48 +205,34 @@ class App(app.App):
             "tailscale_ipv4": self.homey.settings.get("tailscale_ipv4") or "",
             "tailscale_ipv6": self.homey.settings.get("tailscale_ipv6") or "",
             "tailnet_allowed_ips": self.homey.settings.get("tailnet_allowed_ips") or [],
+            "accepted_routes": self.homey.settings.get("accepted_routes") or [],
+            "peer_count": self.homey.settings.get("peer_count") or 0,
             "auth_key_configured": bool(self.homey.settings.get("auth_key")),
-            "auto_connect": bool(self.homey.settings.get("auto_connect")),
-            "accept_routes": bool(self.homey.settings.get("accept_routes")),
-            "enable_subnet_router": bool(self.homey.settings.get("enable_subnet_router")),
+            "auto_connect": _as_bool(self.homey.settings.get("auto_connect")),
+            "accept_routes": _as_bool(self.homey.settings.get("accept_routes")),
+            "enable_subnet_router": _as_bool(self.homey.settings.get("enable_subnet_router")),
             "advertise_routes": self.homey.settings.get("advertise_routes") or "",
-            "last_status_text": self.homey.settings.get("last_status_text") or "Sin estado todavía.",
+            "last_status_text": self.homey.settings.get("last_status_text") or "No status yet.",
+            "userspace_networking": True,
+            "socks5_proxy": self.socks5_addr,
+            "http_proxy": self.http_proxy_addr,
         }
 
     async def api_connect(self) -> dict[str, Any]:
         async with self._cmd_lock:
-            self.auth_key = self.homey.settings.get("auth_key") or ""
-            self.hostname = self.homey.settings.get("hostname") or "homey-pro"
-            self.accept_routes = bool(self.homey.settings.get("accept_routes"))
-            self.enable_subnet_router = bool(self.homey.settings.get("enable_subnet_router"))
-            self.advertise_routes = (self.homey.settings.get("advertise_routes") or "").strip()
+            self._reload_settings()
 
             if not self.auth_key:
-                await self._set_runtime_state("error", "Auth key vacía")
+                await self._set_runtime_state("error", "Auth key is empty")
                 return {"ok": False, "error": "auth_key_empty"}
 
             if not self.proc or self.proc.poll() is not None:
                 await self._start_daemon()
                 await asyncio.sleep(3)
 
-            await self._set_runtime_state("connecting", "Conectando a Tailscale...")
+            await self._set_runtime_state("connecting", "Connecting to Tailscale...")
 
-            up_cmd = [
-                self.tailscale_path,
-                f"--socket={self.socket_path}",
-                "up",
-                f"--auth-key={self.auth_key}",
-                f"--hostname={self.hostname}",
-                "--accept-dns=false",
-            ]
-
-            if self.accept_routes:
-                up_cmd.append("--accept-routes=true")
-
-            if self.enable_subnet_router and self.advertise_routes:
-                up_cmd.append(f"--advertise-routes={self.advertise_routes}")
-
-            result = await self._run_cmd(up_cmd, "tailscale up", return_result=True)
+            result = await self._run_cmd(self._build_up_cmd(), "tailscale up", return_result=True)
 
             await asyncio.sleep(3)
             await self._refresh_runtime_state()
@@ -207,34 +268,15 @@ class App(app.App):
             )
             await asyncio.sleep(2)
 
-            self.auth_key = self.homey.settings.get("auth_key") or ""
-            self.hostname = self.homey.settings.get("hostname") or "homey-pro"
-            self.accept_routes = bool(self.homey.settings.get("accept_routes"))
-            self.enable_subnet_router = bool(self.homey.settings.get("enable_subnet_router"))
-            self.advertise_routes = (self.homey.settings.get("advertise_routes") or "").strip()
+            self._reload_settings()
 
             if not self.auth_key:
-                await self._set_runtime_state("error", "Auth key vacía")
+                await self._set_runtime_state("error", "Auth key is empty")
                 return {"ok": False, "error": "auth_key_empty"}
 
-            await self._set_runtime_state("connecting", "Reconectando a Tailscale...")
+            await self._set_runtime_state("connecting", "Reconnecting to Tailscale...")
 
-            up_cmd = [
-                self.tailscale_path,
-                f"--socket={self.socket_path}",
-                "up",
-                f"--auth-key={self.auth_key}",
-                f"--hostname={self.hostname}",
-                "--accept-dns=false",
-            ]
-
-            if self.accept_routes:
-                up_cmd.append("--accept-routes=true")
-
-            if self.enable_subnet_router and self.advertise_routes:
-                up_cmd.append(f"--advertise-routes={self.advertise_routes}")
-
-            up_result = await self._run_cmd(up_cmd, "tailscale up", return_result=True)
+            up_result = await self._run_cmd(self._build_up_cmd(), "tailscale up", return_result=True)
 
             await asyncio.sleep(3)
             await self._refresh_runtime_state()
@@ -252,6 +294,25 @@ class App(app.App):
         async with self._cmd_lock:
             await self._refresh_runtime_state()
             return await self.api_get_status()
+
+    def _extract_accepted_routes(self, data: dict) -> list[str]:
+        """Subnet routes learned from peers (requires --accept-routes=true)."""
+        routes: set[str] = set()
+        peers = data.get("Peer") or {}
+
+        for peer in peers.values():
+            if not isinstance(peer, dict):
+                continue
+
+            for key in ("PrimaryRoutes", "AllowedIPs"):
+                values = peer.get(key) or []
+                if isinstance(values, str):
+                    values = [values]
+                for cidr in values:
+                    if isinstance(cidr, str) and _is_subnet_route(cidr):
+                        routes.add(cidr)
+
+        return sorted(routes)
 
     async def _refresh_runtime_state(self) -> None:
         status_result = await self._run_cmd(
@@ -276,23 +337,48 @@ class App(app.App):
                 try:
                     data = json.loads(status_result.stdout)
                     backend_state = data.get("BackendState", "unknown")
-                    self_node = data.get("Self", {})
+                    self_node = data.get("Self", {}) or {}
                     dns_name = self_node.get("DNSName", "")
                     host_name = self_node.get("HostName", "")
                     online = self_node.get("Online", False)
-                    allowed_ips = self_node.get("AllowedIPs", [])
+                    # Self.AllowedIPs is ONLY this node's Tailscale addresses (/32,/128),
+                    # never accepted subnet routes from other routers.
+                    allowed_ips = self_node.get("AllowedIPs", []) or []
+                    accepted_routes = self._extract_accepted_routes(data)
+                    peer_count = len(data.get("Peer") or {})
 
                     summary_lines.append(f"BackendState: {backend_state}")
                     summary_lines.append(f"HostName: {host_name}")
                     summary_lines.append(f"DNSName: {dns_name}")
                     summary_lines.append(f"Online: {online}")
-                    summary_lines.append(f"AllowedIPs: {', '.join(allowed_ips) if allowed_ips else '-'}")
+                    summary_lines.append(f"Self AllowedIPs: {', '.join(allowed_ips) if allowed_ips else '-'}")
+                    summary_lines.append(
+                        f"Accepted routes: {', '.join(accepted_routes) if accepted_routes else '-'}"
+                    )
+                    summary_lines.append(f"Peers: {peer_count}")
+                    summary_lines.append(
+                        f"Accept routes setting: {_as_bool(self.homey.settings.get('accept_routes'))}"
+                    )
+
+                    if _as_bool(self.homey.settings.get("accept_routes")) and not accepted_routes:
+                        summary_lines.append(
+                            "Note: accept-routes is ON but no peer subnet routes are visible yet. "
+                            "Check ACL grants, route approval in the admin console, and that the "
+                            "subnet router is online."
+                        )
+                    if not _as_bool(self.homey.settings.get("accept_routes")):
+                        summary_lines.append(
+                            "Note: accept-routes is OFF. Enable it in settings and Reconnect "
+                            "to receive subnet routes from other nodes."
+                        )
 
                     await self.homey.settings.set("backend_state", backend_state)
                     await self.homey.settings.set("tailnet_hostname", host_name)
                     await self.homey.settings.set("tailnet_dns_name", dns_name)
                     await self.homey.settings.set("tailnet_online", online)
                     await self.homey.settings.set("tailnet_allowed_ips", allowed_ips)
+                    await self.homey.settings.set("accepted_routes", accepted_routes)
+                    await self.homey.settings.set("peer_count", peer_count)
 
                     backend_lower = str(backend_state).lower()
                     if backend_lower == "running":
@@ -310,7 +396,7 @@ class App(app.App):
                     summary_lines.append(f"JSON status parse error: {err}")
                     runtime_state = "error"
             else:
-                summary_lines.append("status stdout vacío")
+                summary_lines.append("status stdout empty")
                 runtime_state = "error"
 
         if ip_result:
@@ -339,7 +425,7 @@ class App(app.App):
             summary_lines.append(f"IPv4: {ipv4 or '-'}")
             summary_lines.append(f"IPv6: {ipv6 or '-'}")
 
-        await self._save_status_text("\n".join(summary_lines) if summary_lines else "Sin datos")
+        await self._save_status_text("\n".join(summary_lines) if summary_lines else "No data")
         await self._set_runtime_state(runtime_state)
         await self.push_state_to_devices()
 
@@ -360,6 +446,7 @@ class App(app.App):
             "tailnet_dns_name": current_dns,
             "tailscale_ipv4": current_ipv4,
             "tailscale_ipv6": self.homey.settings.get("tailscale_ipv6") or "",
+            "accepted_routes": self.homey.settings.get("accepted_routes") or [],
             "status_text": self.homey.settings.get("last_status_text") or "",
         }
         await self.homey.api.realtime("tailscale_status_changed", payload)
@@ -387,10 +474,18 @@ class App(app.App):
         ipv4 = self.homey.settings.get("tailscale_ipv4") or ""
         ipv6 = self.homey.settings.get("tailscale_ipv6") or ""
         dns_name = self.homey.settings.get("tailnet_dns_name") or ""
-        routes = self.homey.settings.get("advertise_routes") or ""
+        advertised = self.homey.settings.get("advertise_routes") or ""
+        accepted = self.homey.settings.get("accepted_routes") or []
         runtime_state = self.homey.settings.get("runtime_state") or ""
 
         connected = str(backend_state).lower() == "running" or str(runtime_state).lower() == "running"
+
+        if accepted:
+            routes_text = "accepted: " + ", ".join(accepted)
+            if advertised:
+                routes_text += f" | advertised: {advertised}"
+        else:
+            routes_text = advertised or "-"
 
         return {
             "connected": connected,
@@ -398,7 +493,7 @@ class App(app.App):
             "ipv4": ipv4,
             "ipv6": ipv6,
             "dns_name": dns_name,
-            "routes": routes,
+            "routes": routes_text,
         }
 
     async def push_state_to_devices(self) -> None:
@@ -411,7 +506,7 @@ class App(app.App):
             try:
                 await device.apply_snapshot(snapshot)
             except Exception as err:
-                self.error(f"Error actualizando device Tailscale Status: {err}")
+                self.error(f"Error updating Tailscale Status device: {err}")
 
     async def _run_cmd(self, cmd: list[str], label: str, return_result: bool = False):
         try:
@@ -422,7 +517,7 @@ class App(app.App):
                 else:
                     safe_cmd.append(part)
 
-            self.log(f"Ejecutando {label}: {' '.join(safe_cmd)}")
+            self.log(f"Running {label}: {' '.join(safe_cmd)}")
 
             result = await asyncio.to_thread(
                 subprocess.run,
@@ -441,7 +536,7 @@ class App(app.App):
                 return result
 
         except Exception as err:
-            self.error(f"Error ejecutando {label}: {err}")
+            self.error(f"Error running {label}: {err}")
             if return_result:
                 return None
 
@@ -453,7 +548,7 @@ class App(app.App):
                     break
                 self.log(f"[TAILSCALED STDOUT] {line.strip()}")
         except Exception as err:
-            self.error(f"Error leyendo stdout: {err}")
+            self.error(f"Error reading stdout: {err}")
 
     async def _read_stderr(self) -> None:
         try:
@@ -461,9 +556,14 @@ class App(app.App):
                 line = await asyncio.to_thread(self.proc.stderr.readline)
                 if not line:
                     break
-                self.error(f"[TAILSCALED STDERR] {line.strip()}")
+                text = line.strip()
+                # Expected with --tun=userspace-networking (no kernel router)
+                if "fakeRouter.Set: not implemented" in text:
+                    self.log(f"[TAILSCALED STDERR] {text}")
+                else:
+                    self.error(f"[TAILSCALED STDERR] {text}")
         except Exception as err:
-            self.error(f"Error leyendo stderr: {err}")
+            self.error(f"Error reading stderr: {err}")
 
     async def _flow_connect_listener(self, card_arguments, **trigger_kwargs):
         result = await self.api_connect()
@@ -487,16 +587,16 @@ class App(app.App):
         return backend_state.lower() == "running" or runtime_state.lower() == "running"
 
     async def on_uninit(self) -> None:
-        self.log("=== FIN Tailscale for Homey | on_uninit ===")
+        self.log("=== Tailscale for Homey | on_uninit ===")
 
         if self.proc:
             try:
-                self.log(f"Terminando proceso PID {self.proc.pid}")
+                self.log(f"Stopping process PID {self.proc.pid}")
                 self.proc.terminate()
                 await asyncio.to_thread(self.proc.wait, 5)
-                self.log("Proceso terminado correctamente")
+                self.log("Process stopped")
             except Exception as err:
-                self.error(f"Error terminando proceso: {err}")
+                self.error(f"Error stopping process: {err}")
 
 
 homey_export = App

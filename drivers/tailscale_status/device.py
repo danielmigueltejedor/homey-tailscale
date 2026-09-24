@@ -36,7 +36,7 @@ class TailscaleStatusDevice(device.Device):
             await self.unset_warning()
             await self.set_last_seen_at()
         else:
-            await self.set_warning("Tailscale no está conectado")
+            await self.set_warning("Tailscale is not connected")
 
 
 homey_export = TailscaleStatusDevice
