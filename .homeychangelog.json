@@ -1,0 +1,5 @@
+{
+  "1.1.0": {
+    "en": "Accept routes applied correctly, English/Spanish settings, ACL tags, setup guide, daemon watchdog, and clearer userspace networking limits."
+  }
+}

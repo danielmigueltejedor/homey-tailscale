@@ -92,6 +92,23 @@ def _resolve_state_dir() -> str:
     return "/tmp/tailscale-homey"
 
 
+def _resolve_bin_arch() -> tuple[str, str | None]:
+    """
+    Map Homey CPU arch to bundled Tailscale binaries.
+    - Homey Pro Early 2023+: aarch64
+    - Homey Pro 2019: armv7l
+    """
+    arch = platform.machine().lower()
+    if arch in ("aarch64", "arm64"):
+        return "aarch64", None
+    if arch in ("armv7l", "armv7", "arm"):
+        return "armv7", None
+    return "", (
+        f"Unsupported CPU architecture '{arch}'. "
+        "Supported: Homey Pro Early 2023+ (aarch64) and Homey Pro 2019 (armv7)."
+    )
+
+
 class App(app.App):
     async def on_init(self) -> None:
         self.proc = None
@@ -103,15 +120,10 @@ class App(app.App):
 
         self._reload_settings()
 
-        arch = platform.machine().lower()
-        if arch not in ("aarch64", "arm64"):
-            self.error(
-                f"Unsupported CPU architecture '{arch}'. "
-                "This app currently ships aarch64 binaries (Homey Pro Early 2023+)."
-            )
-
-        self.tailscaled_path = "/app/bin/aarch64/tailscaled"
-        self.tailscale_path = "/app/bin/aarch64/tailscale"
+        bin_arch, arch_err = _resolve_bin_arch()
+        self.bin_arch = bin_arch or "unknown"
+        self.tailscaled_path = f"/app/bin/{bin_arch}/tailscaled" if bin_arch else ""
+        self.tailscale_path = f"/app/bin/{bin_arch}/tailscale" if bin_arch else ""
 
         self.state_dir = _resolve_state_dir()
         self.state_path = f"{self.state_dir}/tailscaled.state"
@@ -143,7 +155,7 @@ class App(app.App):
 
         self.log("=== Tailscale for Homey starting ===")
         self.log(f"OS: {platform.system()} {platform.release()}")
-        self.log(f"Architecture: {platform.machine()}")
+        self.log(f"Architecture: {platform.machine()} -> bin/{self.bin_arch}")
         self.log(f"State dir: {self.state_dir}")
         self.log(f"Hostname: {self.hostname}")
         self.log(f"Auto connect: {self.auto_connect}")
@@ -152,8 +164,13 @@ class App(app.App):
         self.log(f"Advertise routes: {self.advertise_routes}")
         self.log(f"Advertise tags: {self.advertise_tags}")
 
+        if arch_err:
+            self.error(arch_err)
+            await self._set_runtime_state("error", arch_err)
+            return
+
         if not os.path.isfile(self.tailscaled_path) or not os.path.isfile(self.tailscale_path):
-            msg = "Tailscale binaries missing under /app/bin/aarch64/"
+            msg = f"Tailscale binaries missing under /app/bin/{bin_arch}/"
             self.error(msg)
             await self._set_runtime_state("error", msg)
             return
@@ -325,6 +342,7 @@ class App(app.App):
             "socks5_proxy": self.socks5_addr,
             "http_proxy": self.http_proxy_addr,
             "state_dir": self.state_dir,
+            "bin_arch": getattr(self, "bin_arch", ""),
         }
 
     async def api_connect(self) -> dict[str, Any]:
