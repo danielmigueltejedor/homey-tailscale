@@ -9,3 +9,7 @@ venv/
 !.env.example
 .idea/
 .vscode/
+
+
+# Added by Homey CLI
+/.homeybuild/
