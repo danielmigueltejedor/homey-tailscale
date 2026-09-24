@@ -1,5 +1,8 @@
 {
   "1.1.0": {
     "en": "Accept routes applied correctly, English/Spanish settings, ACL tags, setup guide, daemon watchdog, and clearer userspace networking limits."
+  },
+  "1.2.0": {
+    "en": "Add Homey Pro 2019 support with armv7 Tailscale binaries."
   }
 }
