@@ -27,32 +27,37 @@ If another machine on your tailnet advertises a subnet (e.g. `192.168.3.0/24`):
 1. Approve that route in the Tailscale admin console.
 2. Ensure your ACL / grants allow this Homey (or its tag) to use that route.
 3. In Homey settings, enable **Accept routes advertised by other nodes**.
-4. **Save**, then **Reconnect**.
-5. Check **Accepted subnet routes** in the status panel — you should see the CIDR(s), not only Homey’s own `/32`.
+4. Optionally set **Advertise tags** (e.g. `tag:homey`) so grants-based ACLs can match Homey.
+5. **Save & Reconnect**.
+6. Check **Accepted subnet routes** in the status panel — you should see the CIDR(s), not only Homey’s own `/32`.
 
 **Important:** Homey’s own address list (`Self AllowedIPs`) is always just its Tailscale IPs. Accepted routes appear under **Accepted subnet routes** (learned from peers). Looking only at Homey’s `/32` in the admin console is expected and does **not** mean routes failed.
 
-### Advertise Homey’s local subnet
+### Advertise Homey’s local subnet (experimental)
+
+Homey runs Tailscale in **userspace** mode. Advertising Homey’s LAN as a subnet router is **experimental** and may not forward traffic reliably. Prefer a NAS/PC as subnet router. Reaching Homey via its `100.x` IP is the supported use case.
+
+If you still want to try:
 
 1. Enable **Advertise subnet(s) from this Homey**.
 2. Enter CIDR(s), e.g. `192.168.1.0/24`.
-3. Save → Reconnect.
-4. Approve the advertised route in the Tailscale admin console.
+3. Save & Reconnect → approve the route in the admin console.
 
 ### About userspace networking
 
 Homey apps cannot create a kernel TUN device. This app runs Tailscale with `--tun=userspace-networking`.
 
 - Access **to Homey’s Tailscale IP** from other nodes works.
+- Local SOCKS5 (`127.0.0.1:1055`) and HTTP (`127.0.0.1:1056`) proxies are shown in the status panel.
 - Log lines like `fakeRouter.Set: not implemented` are **normal**.
-- Full OS-level routing into remote subnets for every Homey app is limited compared to a normal Tailscale client with a TUN.
+- The app keeps `tailscaled` alive with a watchdog and refreshes status every 30s.
 
 ### Troubleshooting
 
 | Symptom | What to check |
 |--------|----------------|
-| Never connects | Auth key valid? Key not expired? Tap Connect and read the status box. |
-| Connected but no subnet routes | **Accept routes** enabled? Reconnected after enabling? Route approved? ACL grants OK? |
+| Never connects | Auth key valid and **reusable**? Tap Connect — errors now show in an alert. |
+| Connected but no subnet routes | **Accept routes** on? **Save & Reconnect**? Route approved? ACL/tags OK? |
 | Only see `/32` AllowedIPs | Expected for Homey’s own node. Check **Accepted subnet routes**. |
 | Homey Pro 2019 | Not supported (wrong CPU architecture). |
 

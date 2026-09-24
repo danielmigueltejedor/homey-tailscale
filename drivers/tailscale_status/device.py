@@ -3,14 +3,14 @@ from homey import device
 
 class TailscaleStatusDevice(device.Device):
     async def on_init(self) -> None:
-        self.log(f"TailscaleStatusDevice inicializado: {self.get_name()}")
+        self.log(f"TailscaleStatusDevice initialized: {self.get_name()}")
 
         if hasattr(self.homey.app, "build_device_snapshot"):
             snapshot = self.homey.app.build_device_snapshot()
             await self.apply_snapshot(snapshot)
 
     async def on_added(self) -> None:
-        self.log("TailscaleStatusDevice añadido")
+        self.log("TailscaleStatusDevice added")
 
         if hasattr(self.homey.app, "build_device_snapshot"):
             snapshot = self.homey.app.build_device_snapshot()

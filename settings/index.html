@@ -408,6 +408,21 @@
         </div>
       </div>
 
+      <div class="status-grid" style="margin-top: 14px;">
+        <div class="stat">
+          <div class="stat-label" data-i18n="lbl_socks">SOCKS5 proxy</div>
+          <div id="socksProxy" class="stat-value">127.0.0.1:1055</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label" data-i18n="lbl_http_proxy">HTTP proxy</div>
+          <div id="httpProxy" class="stat-value">127.0.0.1:1056</div>
+        </div>
+        <div class="stat" style="grid-column: span 2;">
+          <div class="stat-label" data-i18n="lbl_tags">Tags</div>
+          <div id="tagsView" class="stat-value">-</div>
+        </div>
+      </div>
+
       <div class="status-box" id="statusText">-</div>
     </div>
 
@@ -469,20 +484,32 @@
             </div>
           </div>
         </label>
+
+        <div class="field">
+          <label for="advertise_tags" data-i18n="lbl_advertise_tags">Advertise tags (ACL)</label>
+          <input id="advertise_tags" type="text" placeholder="tag:homey" />
+          <div class="help" data-i18n="help_advertise_tags">
+            Optional. Comma-separated Tailscale tags for grants-based ACLs, e.g. <code>tag:homey,tag:mehet-budapestre</code>. Must be allowed for your auth key.
+          </div>
+        </div>
       </div>
 
       <div class="warn-box" data-i18n="warn_userspace">
-        This app runs Tailscale in userspace networking mode (required inside Homey). Peer-to-peer access to Homey's Tailscale IP works. Kernel route installation is not available (<code>fakeRouter.Set: not implemented</code> in logs is expected). Enable Accept routes and check “Accepted subnet routes” below after reconnecting.
+        This app runs Tailscale in userspace networking mode (required inside Homey). Peer-to-peer access to Homey's Tailscale IP works. Kernel route installation is not available (<code>fakeRouter.Set: not implemented</code> in logs is expected). Enable Accept routes and check “Accepted subnet routes” after reconnecting.
       </div>
     </div>
 
     <div class="card">
-      <h2 class="section-title" data-i18n="subnet_title">Subnet router</h2>
+      <h2 class="section-title" data-i18n="subnet_title">Subnet router (advanced)</h2>
       <p class="section-subtitle" data-i18n="subnet_sub">
-        Make this Homey advertise one or more local subnets to the tailnet.
+        Optionally advertise local subnets from this Homey. Prefer a dedicated subnet router (NAS/PC) when you need reliable LAN access for other nodes.
       </p>
 
-      <div class="grid-1">
+      <div class="warn-box" data-i18n="warn_subnet">
+        Userspace mode cannot install kernel routes or do full LAN forwarding like a normal Tailscale subnet router. Advertising from Homey is experimental — other nodes may not reliably reach your LAN through Homey. Reaching Homey itself via its <code>100.x</code> IP is the supported use case.
+      </div>
+
+      <div class="grid-1" style="margin-top: 14px;">
         <label class="toggle">
           <input id="enable_subnet_router" type="checkbox" />
           <div class="toggle-text">
@@ -507,12 +534,13 @@
     <div class="card">
       <h2 class="section-title" data-i18n="save_title">Save configuration</h2>
       <p class="section-subtitle" data-i18n="save_sub">
-        Save your changes. Then connect manually, or let the app connect on start if auto-connect is enabled.
+        Save your changes. Use Save &amp; Reconnect to apply route, tag, or hostname changes immediately.
       </p>
 
       <div class="actions">
         <button id="save" class="btn-primary" data-i18n="btn_save">Save settings</button>
-        <div class="inline-note" data-i18n="save_note">To apply route / hostname changes, use Reconnect.</div>
+        <button id="saveReconnect" class="btn-secondary" data-i18n="btn_save_reconnect">Save &amp; Reconnect</button>
+        <div class="inline-note" data-i18n="save_note">Connect / Reconnect always saves the form first.</div>
       </div>
     </div>
   </div>
@@ -531,6 +559,11 @@
         lbl_accept_routes: 'Accept routes',
         lbl_subnet_router: 'Subnet router',
         lbl_accepted_routes: 'Accepted subnet routes',
+        lbl_socks: 'SOCKS5 proxy',
+        lbl_http_proxy: 'HTTP proxy',
+        lbl_tags: 'Tags',
+        lbl_advertise_tags: 'Advertise tags (ACL)',
+        help_advertise_tags: 'Optional. Comma-separated Tailscale tags for grants-based ACLs, e.g. <code>tag:homey,tag:mehet-budapestre</code>. Must be allowed for your auth key.',
         control_title: 'Control',
         control_sub: 'Manual Tailscale actions without restarting the app.',
         btn_connect: 'Connect',
@@ -540,7 +573,7 @@
         conn_title: 'Connection',
         conn_sub: 'Basic settings to authenticate Homey on Tailscale and how it appears on the tailnet.',
         lbl_auth_key: 'Auth key',
-        help_auth_key: 'Use a reusable or ephemeral auth key from the Tailscale admin console. It is never printed in logs.',
+        help_auth_key: 'Prefer a <strong>reusable</strong> auth key. Ephemeral keys only work once. Never printed in logs.',
         lbl_hostname_field: 'Hostname',
         help_hostname: 'Name this node will use on the tailnet.',
         tog_auto_title: 'Connect automatically on start',
@@ -548,16 +581,18 @@
         tog_accept_title: 'Accept routes advertised by other nodes',
         tog_accept_desc: 'Required to receive subnet routes (e.g. <code>192.168.3.0/24</code>) from a subnet router. After changing this, click Reconnect.',
         warn_userspace: 'This app runs Tailscale in userspace networking mode (required inside Homey). Peer-to-peer access to Homey’s Tailscale IP works. Kernel route installation is not available (<code>fakeRouter.Set: not implemented</code> in logs is expected). Enable Accept routes and check “Accepted subnet routes” after reconnecting.',
-        subnet_title: 'Subnet router',
-        subnet_sub: 'Make this Homey advertise one or more local subnets to the tailnet.',
+        warn_subnet: 'Userspace mode cannot install kernel routes or do full LAN forwarding like a normal Tailscale subnet router. Advertising from Homey is experimental — other nodes may not reliably reach your LAN through Homey. Reaching Homey itself via its <code>100.x</code> IP is the supported use case.',
+        subnet_title: 'Subnet router (advanced)',
+        subnet_sub: 'Optionally advertise local subnets from this Homey. Prefer a dedicated subnet router (NAS/PC) when you need reliable LAN access for other nodes.',
         tog_adv_title: 'Advertise subnet(s) from this Homey',
         tog_adv_desc: 'Adds <code>--advertise-routes</code> on connect. Approve the route in the Tailscale admin console afterwards.',
         lbl_advertise: 'Subnet(s) to advertise',
         help_advertise: 'CIDR format. Separate multiple with commas. Example: <code>192.168.1.0/24,192.168.50.0/24</code>',
         save_title: 'Save configuration',
-        save_sub: 'Save your changes. Then connect manually, or let the app connect on start if auto-connect is enabled.',
+        save_sub: 'Save your changes. Use Save &amp; Reconnect to apply route, tag, or hostname changes immediately.',
         btn_save: 'Save settings',
-        save_note: 'To apply route / hostname changes, use Reconnect.',
+        btn_save_reconnect: 'Save &amp; Reconnect',
+        save_note: 'Connect / Reconnect always saves the form first.',
         state_running: 'Connected',
         state_connecting: 'Connecting',
         state_starting: 'Starting',
@@ -573,11 +608,14 @@
         on: 'On',
         off: 'Off',
         saved: 'Settings saved',
+        action_ok: 'Done',
+        action_fail: 'Action failed',
         err_status: 'Error fetching status: ',
         err_connect: 'Connect error: ',
         err_disconnect: 'Disconnect error: ',
         err_reconnect: 'Reconnect error: ',
-        err_refresh: 'Refresh error: '
+        err_refresh: 'Refresh error: ',
+        err_save: 'Save error: '
       },
       es: {
         pill: 'Nodalia · Tailscale for Homey',
@@ -591,6 +629,11 @@
         lbl_accept_routes: 'Aceptar rutas',
         lbl_subnet_router: 'Subnet router',
         lbl_accepted_routes: 'Rutas de subred aceptadas',
+        lbl_socks: 'Proxy SOCKS5',
+        lbl_http_proxy: 'Proxy HTTP',
+        lbl_tags: 'Tags',
+        lbl_advertise_tags: 'Anunciar tags (ACL)',
+        help_advertise_tags: 'Opcional. Tags de Tailscale para ACLs con grants, p. ej. <code>tag:homey,tag:mehet-budapestre</code>. Deben estar permitidos en tu auth key.',
         control_title: 'Control',
         control_sub: 'Acciones manuales sobre Tailscale sin reiniciar la app.',
         btn_connect: 'Conectar',
@@ -600,7 +643,7 @@
         conn_title: 'Conexión',
         conn_sub: 'Ajustes básicos para autenticar Homey en Tailscale y definir cómo se presenta en el tailnet.',
         lbl_auth_key: 'Auth key',
-        help_auth_key: 'Usa una key reutilizable o efímera de la consola de Tailscale. No se muestra en los logs.',
+        help_auth_key: 'Mejor una auth key <strong>reutilizable</strong>. Las efímeras solo sirven una vez. No se muestra en los logs.',
         lbl_hostname_field: 'Hostname',
         help_hostname: 'Nombre con el que aparecerá el nodo dentro del tailnet.',
         tog_auto_title: 'Conectar automáticamente al arrancar',
@@ -608,16 +651,18 @@
         tog_accept_title: 'Aceptar rutas anunciadas por otros nodos',
         tog_accept_desc: 'Necesario para recibir rutas de subred (p. ej. <code>192.168.3.0/24</code>) de un subnet router. Tras cambiarlo, pulsa Reconectar.',
         warn_userspace: 'Esta app ejecuta Tailscale en modo userspace (obligatorio dentro de Homey). El acceso peer-to-peer a la IP Tailscale de Homey funciona. No hay instalación de rutas en el kernel (<code>fakeRouter.Set: not implemented</code> en los logs es normal). Activa Aceptar rutas y revisa “Rutas de subred aceptadas” tras reconectar.',
-        subnet_title: 'Subnet router',
-        subnet_sub: 'Haz que este Homey anuncie una o varias subredes al tailnet.',
+        warn_subnet: 'El modo userspace no instala rutas de kernel ni hace forwarding LAN como un subnet router normal. Anunciar desde Homey es experimental. El caso soportado es acceder a Homey por su IP <code>100.x</code>.',
+        subnet_title: 'Subnet router (avanzado)',
+        subnet_sub: 'Opcionalmente anuncia subredes locales desde este Homey. Para LAN fiable, usa un subnet router dedicado (NAS/PC).',
         tog_adv_title: 'Anunciar subred(es) desde este Homey',
         tog_adv_desc: 'Añade <code>--advertise-routes</code> al conectar. Luego aprueba la ruta en la consola de Tailscale.',
         lbl_advertise: 'Subred(es) a anunciar',
         help_advertise: 'Formato CIDR. Si son varias, sepáralas por comas. Ejemplo: <code>192.168.1.0/24,192.168.50.0/24</code>',
         save_title: 'Guardar configuración',
-        save_sub: 'Guarda los cambios. Después puedes conectar manualmente o dejar que la app lo haga al arrancar.',
+        save_sub: 'Guarda los cambios. Usa Guardar y reconectar para aplicar rutas, tags o hostname al momento.',
         btn_save: 'Guardar ajustes',
-        save_note: 'Para aplicar cambios de rutas / hostname, usa Reconectar.',
+        btn_save_reconnect: 'Guardar y reconectar',
+        save_note: 'Conectar / Reconectar siempre guarda el formulario primero.',
         state_running: 'Conectado',
         state_connecting: 'Conectando',
         state_starting: 'Iniciando',
@@ -633,11 +678,14 @@
         on: 'Activado',
         off: 'Desactivado',
         saved: 'Configuración guardada',
+        action_ok: 'Listo',
+        action_fail: 'La acción falló',
         err_status: 'Error consultando estado: ',
         err_connect: 'Error al conectar: ',
         err_disconnect: 'Error al desconectar: ',
         err_reconnect: 'Error al reconectar: ',
-        err_refresh: 'Error al refrescar: '
+        err_refresh: 'Error al refrescar: ',
+        err_save: 'Error al guardar: '
       }
     };
 
@@ -666,8 +714,10 @@
       const acceptRoutesEl = document.getElementById('accept_routes');
       const enableSubnetRouterEl = document.getElementById('enable_subnet_router');
       const advertiseRoutesEl = document.getElementById('advertise_routes');
+      const advertiseTagsEl = document.getElementById('advertise_tags');
 
       const saveEl = document.getElementById('save');
+      const saveReconnectEl = document.getElementById('saveReconnect');
       const btnConnectEl = document.getElementById('btnConnect');
       const btnDisconnectEl = document.getElementById('btnDisconnect');
       const btnReconnectEl = document.getElementById('btnReconnect');
@@ -685,15 +735,59 @@
       const acceptRoutesViewEl = document.getElementById('acceptRoutesView');
       const subnetRouterViewEl = document.getElementById('subnetRouterView');
       const acceptedRoutesViewEl = document.getElementById('acceptedRoutesView');
+      const socksProxyEl = document.getElementById('socksProxy');
+      const httpProxyEl = document.getElementById('httpProxy');
+      const tagsViewEl = document.getElementById('tagsView');
       const statusTextEl = document.getElementById('statusText');
 
       stateTitleEl.textContent = t.state_unknown;
       stateSubEl.textContent = t.waiting;
       statusTextEl.textContent = t.no_status;
 
+      const busyButtons = [
+        saveEl, saveReconnectEl, btnConnectEl, btnDisconnectEl, btnReconnectEl, btnRefreshEl
+      ];
+
       function setBusy(isBusy) {
-        [saveEl, btnConnectEl, btnDisconnectEl, btnReconnectEl, btnRefreshEl]
-          .forEach(el => el.disabled = isBusy);
+        busyButtons.forEach(el => { if (el) el.disabled = isBusy; });
+      }
+
+      function asBool(value) {
+        return value === true || value === 1 || value === '1' || value === 'true' || value === 'on';
+      }
+
+      function setSetting(key, value) {
+        return new Promise((resolve, reject) => {
+          Homey.set(key, value, (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+      }
+
+      function getSetting(key) {
+        return new Promise((resolve) => {
+          Homey.get(key, (err, value) => {
+            resolve(err ? undefined : value);
+          });
+        });
+      }
+
+      function saveSettings() {
+        return Promise.all([
+          setSetting('auth_key', authKeyEl.value),
+          setSetting('hostname', hostnameEl.value || 'homey-pro'),
+          setSetting('auto_connect', !!autoConnectEl.checked),
+          setSetting('accept_routes', !!acceptRoutesEl.checked),
+          setSetting('enable_subnet_router', !!enableSubnetRouterEl.checked),
+          setSetting('advertise_routes', advertiseRoutesEl.value || ''),
+          setSetting('advertise_tags', advertiseTagsEl.value || '')
+        ]);
+      }
+
+      function resultErrorMessage(result) {
+        if (!result) return t.action_fail;
+        return result.stderr || result.up_stderr || result.error || t.action_fail;
       }
 
       function prettyState(state) {
@@ -731,29 +825,21 @@
 
         const accepted = data.accepted_routes || [];
         acceptedRoutesViewEl.textContent = accepted.length ? accepted.join(', ') : '-';
+        socksProxyEl.textContent = data.socks5_proxy || '127.0.0.1:1055';
+        httpProxyEl.textContent = data.http_proxy || '127.0.0.1:1056';
+        tagsViewEl.textContent = data.advertise_tags || '-';
 
         statusTextEl.textContent = data.last_status_text || t.no_status;
       }
 
-      function loadSettings() {
-        Homey.get('auth_key', (err, value) => {
-          if (!err && value) authKeyEl.value = value;
-        });
-        Homey.get('hostname', (err, value) => {
-          hostnameEl.value = value || 'homey-pro';
-        });
-        Homey.get('auto_connect', (err, value) => {
-          autoConnectEl.checked = !!value;
-        });
-        Homey.get('accept_routes', (err, value) => {
-          acceptRoutesEl.checked = !!value;
-        });
-        Homey.get('enable_subnet_router', (err, value) => {
-          enableSubnetRouterEl.checked = !!value;
-        });
-        Homey.get('advertise_routes', (err, value) => {
-          advertiseRoutesEl.value = value || '';
-        });
+      async function loadSettings() {
+        authKeyEl.value = (await getSetting('auth_key')) || '';
+        hostnameEl.value = (await getSetting('hostname')) || 'homey-pro';
+        autoConnectEl.checked = asBool(await getSetting('auto_connect'));
+        acceptRoutesEl.checked = asBool(await getSetting('accept_routes'));
+        enableSubnetRouterEl.checked = asBool(await getSetting('enable_subnet_router'));
+        advertiseRoutesEl.value = (await getSetting('advertise_routes')) || '';
+        advertiseTagsEl.value = (await getSetting('advertise_tags')) || '';
       }
 
       function loadRuntimeStatus() {
@@ -766,27 +852,50 @@
         });
       }
 
+      function runApi(method, path, failPrefix) {
+        setBusy(true);
+        return saveSettings()
+          .then(() => new Promise((resolve, reject) => {
+            Homey.api(method, path, {}, (err, result) => {
+              if (err) reject(err);
+              else resolve(result);
+            });
+          }))
+          .then((result) => {
+            setBusy(false);
+            loadRuntimeStatus();
+            if (result && result.ok === false) {
+              Homey.alert(failPrefix + resultErrorMessage(result));
+            }
+            return result;
+          })
+          .catch((err) => {
+            setBusy(false);
+            Homey.alert(failPrefix + (err.message || err.toString()));
+            loadRuntimeStatus();
+          });
+      }
+
       saveEl.addEventListener('click', () => {
-        Homey.set('auth_key', authKeyEl.value, () => {});
-        Homey.set('hostname', hostnameEl.value || 'homey-pro', () => {});
-        Homey.set('auto_connect', autoConnectEl.checked, () => {});
-        Homey.set('accept_routes', acceptRoutesEl.checked, () => {});
-        Homey.set('enable_subnet_router', enableSubnetRouterEl.checked, () => {});
-        Homey.set('advertise_routes', advertiseRoutesEl.value || '', () => {});
-        Homey.alert(t.saved);
-        loadRuntimeStatus();
+        setBusy(true);
+        saveSettings()
+          .then(() => {
+            setBusy(false);
+            Homey.alert(t.saved);
+            loadRuntimeStatus();
+          })
+          .catch((err) => {
+            setBusy(false);
+            Homey.alert(t.err_save + (err.message || err.toString()));
+          });
+      });
+
+      saveReconnectEl.addEventListener('click', () => {
+        runApi('POST', '/reconnect', t.err_reconnect);
       });
 
       btnConnectEl.addEventListener('click', () => {
-        setBusy(true);
-        Homey.api('POST', '/connect', {}, (err, result) => {
-          setBusy(false);
-          if (err) {
-            Homey.alert(t.err_connect + (err.message || err.toString()));
-            return;
-          }
-          loadRuntimeStatus();
-        });
+        runApi('POST', '/connect', t.err_connect);
       });
 
       btnDisconnectEl.addEventListener('click', () => {
@@ -797,20 +906,15 @@
             Homey.alert(t.err_disconnect + (err.message || err.toString()));
             return;
           }
+          if (result && result.ok === false) {
+            Homey.alert(t.err_disconnect + resultErrorMessage(result));
+          }
           loadRuntimeStatus();
         });
       });
 
       btnReconnectEl.addEventListener('click', () => {
-        setBusy(true);
-        Homey.api('POST', '/reconnect', {}, (err, result) => {
-          setBusy(false);
-          if (err) {
-            Homey.alert(t.err_reconnect + (err.message || err.toString()));
-            return;
-          }
-          loadRuntimeStatus();
-        });
+        runApi('POST', '/reconnect', t.err_reconnect);
       });
 
       btnRefreshEl.addEventListener('click', () => {
@@ -833,9 +937,10 @@
         loadSettings();
       });
 
-      loadSettings();
-      loadRuntimeStatus();
-      Homey.ready();
+      loadSettings().then(() => {
+        loadRuntimeStatus();
+        Homey.ready();
+      });
     }
   </script>
 </body>
