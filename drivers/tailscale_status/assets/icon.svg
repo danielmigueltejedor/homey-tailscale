@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <!-- Driver icon: status sensor (different from app icon), transparent bg -->
-  <g stroke="#000000" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" fill="none">
+  <!-- Driver icon: status/radar, white for dark brandColor backdrop -->
+  <g stroke="#FFFFFF" stroke-width="28" stroke-linecap="round" stroke-linejoin="round" fill="none">
     <circle cx="256" cy="256" r="70"/>
     <path d="M150 256h-70M432 256h-70M256 150v-70M256 432v-70"/>
     <path d="M170 170l-45-45M342 170l45-45M170 342l-45 45M342 342l45 45"/>
   </g>
-  <circle cx="256" cy="256" r="28" fill="#000000"/>
+  <circle cx="256" cy="256" r="28" fill="#FFFFFF"/>
 </svg>

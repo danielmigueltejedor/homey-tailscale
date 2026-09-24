@@ -2,8 +2,8 @@
 
 Secure remote access to Homey Pro through your Tailscale tailnet. Manage the connection from Homey settings, monitor status, use Flow cards, and optionally accept or advertise subnet routes.
 
-**Supported hardware:** Homey Pro (Early 2023+, aarch64) and Homey Pro (2019, armv7).  
-**Note:** Homey Pro 2019 has less RAM — keep auto-connect on and avoid advertising large subnet sets if the Homey feels sluggish.
+**Supported hardware:** Homey Pro (Early 2023+), Homey Pro mini, Homey Pro (2026), Homey Self-Hosted Server (aarch64).  
+**Not supported:** Homey Pro (2019) — Athom’s Python Apps SDK does not run on that model.
 
 ---
 
@@ -59,7 +59,7 @@ Homey apps cannot create a kernel TUN device. This app runs Tailscale with `--tu
 | Never connects | Auth key valid and **reusable**? Tap Connect — errors now show in an alert. |
 | Connected but no subnet routes | **Accept routes** on? **Save & Reconnect**? Route approved? ACL/tags OK? |
 | Only see `/32` AllowedIPs | Expected for Homey’s own node. Check **Accepted subnet routes**. |
-| Homey Pro 2019 | Supported (armv7). If it feels slow, disable subnet advertise and keep only remote access to Homey. |
+| Homey Pro 2019 | Not supported (Athom Python runtime is only on 2023+ / mini / self-hosted). |
 
 ---
 
@@ -93,7 +93,7 @@ Homey apps cannot create a kernel TUN device. This app runs Tailscale with `--tu
 - Auth key correcta y no caducada.
 - Tras cambiar rutas o hostname, siempre **Reconectar**.
 - El mensaje `fakeRouter.Set: not implemented` en los logs es normal (modo userspace).
-- Homey Pro (2019) está soportado (armv7); si va justo de RAM, no anuncies subredes.
+- Homey Pro (2019) no está soportado: el runtime Python de Athom no corre en ese modelo.
 
 ---
 
@@ -104,6 +104,5 @@ Triggers, conditions and actions are available for connect / disconnect / reconn
 ## Development
 
 - Runtime: Homey SDK 3, Python
-- Binaries: `bin/aarch64/` (Homey Pro Early 2023+) and `bin/armv7/` (Homey Pro 2019), Tailscale 1.96.2
-- Architecture is selected at runtime via `platform.machine()`
+- Binaries: `bin/aarch64/` Tailscale 1.96.2
 - Settings UI: `settings/index.html` (English by default; Spanish if Homey language is `es`)

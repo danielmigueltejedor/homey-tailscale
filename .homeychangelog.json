@@ -4,5 +4,8 @@
   },
   "1.2.0": {
     "en": "Add Homey Pro 2019 support with armv7 Tailscale binaries."
+  },
+  "1.2.1": {
+    "en": "Replace logo-only App Store images with lifestyle and product images per Homey guidelines."
   }
 }

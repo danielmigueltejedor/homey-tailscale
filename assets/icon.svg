@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <!-- Homey app icon: transparent background, vector nodes (no filled plate / no brand wordmark) -->
-  <g fill="#000000">
-    <circle cx="65.6" cy="63.9" r="48" opacity="0.22"/>
-    <circle cx="257.2" cy="63.9" r="48" opacity="0.22"/>
-    <circle cx="446.4" cy="63.9" r="48" opacity="0.22"/>
+  <!-- Light nodes for dark brandColor (#0F172A) backdrop -->
+  <g fill="#FFFFFF">
+    <circle cx="65.6" cy="63.9" r="48" opacity="0.28"/>
+    <circle cx="257.2" cy="63.9" r="48" opacity="0.28"/>
+    <circle cx="446.4" cy="63.9" r="48" opacity="0.28"/>
 
     <circle cx="65.6" cy="254.2" r="48"/>
     <circle cx="257.2" cy="254.2" r="48"/>
     <circle cx="446.4" cy="254.2" r="48"/>
 
-    <circle cx="65.6" cy="448.1" r="48" opacity="0.22"/>
+    <circle cx="65.6" cy="448.1" r="48" opacity="0.28"/>
     <circle cx="257.2" cy="448.1" r="48"/>
-    <circle cx="446.4" cy="448.1" r="48" opacity="0.22"/>
+    <circle cx="446.4" cy="448.1" r="48" opacity="0.28"/>
   </g>
 </svg>

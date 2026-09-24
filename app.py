@@ -95,17 +95,15 @@ def _resolve_state_dir() -> str:
 def _resolve_bin_arch() -> tuple[str, str | None]:
     """
     Map Homey CPU arch to bundled Tailscale binaries.
-    - Homey Pro Early 2023+: aarch64
-    - Homey Pro 2019: armv7l
+    Python Apps SDK only runs on Homey Pro Early 2023+ / mini / self-hosted (aarch64).
     """
     arch = platform.machine().lower()
     if arch in ("aarch64", "arm64"):
         return "aarch64", None
-    if arch in ("armv7l", "armv7", "arm"):
-        return "armv7", None
     return "", (
         f"Unsupported CPU architecture '{arch}'. "
-        "Supported: Homey Pro Early 2023+ (aarch64) and Homey Pro 2019 (armv7)."
+        "This Python app requires Homey Pro Early 2023+, Homey Pro mini, "
+        "or Homey Self-Hosted Server (aarch64). Homey Pro 2019 is not supported by Athom's Python runtime."
     )
 
 
