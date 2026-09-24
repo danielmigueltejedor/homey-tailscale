@@ -7,5 +7,8 @@
   },
   "1.2.1": {
     "en": "Replace logo-only App Store images with lifestyle and product images per Homey guidelines."
+  },
+  "1.2.2": {
+    "en": "Fix invisible app icon on dark brandColor; clarify Homey Pro 2019 is unsupported by Athom Python runtime; shrink package."
   }
 }

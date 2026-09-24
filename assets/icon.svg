@@ -1,16 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <!-- Light nodes for dark brandColor (#0F172A) backdrop -->
-  <g fill="#FFFFFF">
-    <circle cx="65.6" cy="63.9" r="48" opacity="0.28"/>
-    <circle cx="257.2" cy="63.9" r="48" opacity="0.28"/>
-    <circle cx="446.4" cy="63.9" r="48" opacity="0.28"/>
-
-    <circle cx="65.6" cy="254.2" r="48"/>
-    <circle cx="257.2" cy="254.2" r="48"/>
-    <circle cx="446.4" cy="254.2" r="48"/>
-
-    <circle cx="65.6" cy="448.1" r="48" opacity="0.28"/>
-    <circle cx="257.2" cy="448.1" r="48"/>
-    <circle cx="446.4" cy="448.1" r="48" opacity="0.28"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Homey expects black artwork on transparent bg; brandColor is the circle behind -->
+  <circle cx="66" cy="64" r="52" fill="#000000"/>
+  <circle cx="256" cy="64" r="52" fill="#000000"/>
+  <circle cx="446" cy="64" r="52" fill="#000000"/>
+  <circle cx="66" cy="256" r="52" fill="#000000"/>
+  <circle cx="256" cy="256" r="52" fill="#000000"/>
+  <circle cx="446" cy="256" r="52" fill="#000000"/>
+  <circle cx="66" cy="448" r="52" fill="#000000"/>
+  <circle cx="256" cy="448" r="52" fill="#000000"/>
+  <circle cx="446" cy="448" r="52" fill="#000000"/>
 </svg>
