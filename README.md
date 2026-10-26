@@ -105,4 +105,5 @@ Triggers, conditions and actions are available for connect / disconnect / reconn
 
 - Runtime: Homey SDK 3, Python
 - Binaries: `bin/aarch64/` Tailscale 1.104.2
+- Bundled stable binaries are checked weekly by GitHub Actions (`.github/workflows/sync-tailscale.yml`). Publishing a new Homey app version is still required to deliver refreshed binaries to installed Homeys.
 - Settings UI: `settings/index.html` (English by default; Spanish if Homey language is `es`)
