@@ -13,5 +13,9 @@
   },
   "1.2.3": {
     "en": "Fix app icon: Homey requires black SVG on contrasting brandColor."
+  },
+  "1.2.5": {
+    "en": "Update bundled Tailscale to 1.104.2 and automatically sync future stable ARM64 binary updates.",
+    "es": "Actualiza Tailscale integrado a 1.104.2 y añade sincronización automática de futuras versiones estables ARM64."
   }
 }
