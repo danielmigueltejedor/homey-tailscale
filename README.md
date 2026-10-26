@@ -104,5 +104,5 @@ Triggers, conditions and actions are available for connect / disconnect / reconn
 ## Development
 
 - Runtime: Homey SDK 3, Python
-- Binaries: `bin/aarch64/` Tailscale 1.96.2
+- Binaries: `bin/aarch64/` Tailscale 1.104.2
 - Settings UI: `settings/index.html` (English by default; Spanish if Homey language is `es`)
