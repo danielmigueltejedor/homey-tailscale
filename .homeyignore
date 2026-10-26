@@ -16,3 +16,8 @@ bin/**/test-daemon.sh
 .DS_Store
 .env
 .venv
+.github
+scripts
+scripts/**
+tests
+tests/**
