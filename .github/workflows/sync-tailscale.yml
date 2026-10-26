@@ -1,0 +1,44 @@
+name: Sync bundled Tailscale stable binaries
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 7 * * 1'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/sync-tailscale.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-tailscale-main
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test updater before downloading upstream executables
+        run: python -m unittest discover -s tests -v
+      - name: Synchronize with latest stable ARM64 release
+        run: python scripts/sync_tailscale.py
+      - name: Commit changed binaries and version marker
+        run: |
+          if git diff --quiet -- bin/aarch64/ README.md; then
+            echo 'Tailscale already current'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bin/aarch64/tailscale bin/aarch64/tailscaled bin/aarch64/VERSION README.md
+          git commit -m "chore: sync bundled Tailscale stable binaries"
+          git push
