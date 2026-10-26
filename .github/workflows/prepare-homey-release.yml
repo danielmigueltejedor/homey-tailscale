@@ -9,7 +9,7 @@ on:
       - 'app.json'
       - '.homeychangelog.json'
       - 'assets/icon.svg'
-      - 'bin/aarch64/**'
+      - '.homeyignore'
 
 permissions:
   contents: read
@@ -36,11 +36,12 @@ jobs:
           app = json.loads(Path("app.json").read_text())
           version = app["version"]
           assert app["id"] == "com.danielmiguel.tailscale"
-          assert version == "1.3.2", f"Unexpected Homey app version: {version}"
+          import re
+          assert re.fullmatch(r"\\d+\\.\\d+\\.\\d+", version), f"Invalid app version: {version}"
           assert version in json.loads(Path(".homeychangelog.json").read_text())
 
           tailscale_version = Path("bin/aarch64/VERSION").read_text().strip()
-          assert tailscale_version == "1.104.2", tailscale_version
+          assert re.fullmatch(r"\\d+\\.\\d+\\.\\d+", tailscale_version), tailscale_version
           for name in ("tailscale", "tailscaled"):
               binary = Path("bin/aarch64") / name
               with binary.open("rb") as f:
@@ -57,6 +58,9 @@ jobs:
         run: npm install --global --no-optional homey
       - name: Validate for Homey App Store publishing
         run: homey app validate --level publish
+      - name: Read app version
+        id: meta
+        run: echo "version=$(python -c 'import json; print(json.load(open("app.json"))["version"])')" >> "$GITHUB_OUTPUT"
       - name: Package ready-to-publish source
         shell: bash
         run: |
@@ -76,6 +80,6 @@ jobs:
           sha256sum "dist/homey-tailscale-v${version}-publish-source.tar.gz" | tee "dist/SHA256SUMS"
       - uses: actions/upload-artifact@v4
         with:
-          name: homey-tailscale-v1.3.2-publish-source
+          name: homey-tailscale-v${{ steps.meta.outputs.version }}-publish-source
           path: dist/
           retention-days: 30
