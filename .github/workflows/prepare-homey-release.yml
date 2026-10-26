@@ -45,7 +45,7 @@ jobs:
               binary = Path("bin/aarch64") / name
               with binary.open("rb") as f:
                   magic = f.read(20)
-              assert magic[:6] == b"\\x7fELF\\x02\\x01" and magic[18:20] == b"\\xb7\\x00", name
+              assert magic[:6] == b"\x7fELF\x02\x01" and magic[18:20] == b"\xb7\x00", name
               assert binary.stat().st_size > 1_000_000
           print(f"Homey {version}, Tailscale {tailscale_version}, ARM64 binaries verified")
           PY
