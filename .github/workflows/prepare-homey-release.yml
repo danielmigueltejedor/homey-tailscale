@@ -37,11 +37,11 @@ jobs:
           version = app["version"]
           assert app["id"] == "com.danielmiguel.tailscale"
           import re
-          assert re.fullmatch(r"\\d+\\.\\d+\\.\\d+", version), f"Invalid app version: {version}"
+          assert re.fullmatch(r"\d+\.\d+\.\d+", version), f"Invalid app version: {version}"
           assert version in json.loads(Path(".homeychangelog.json").read_text())
 
           tailscale_version = Path("bin/aarch64/VERSION").read_text().strip()
-          assert re.fullmatch(r"\\d+\\.\\d+\\.\\d+", tailscale_version), tailscale_version
+          assert re.fullmatch(r"\d+\.\d+\.\d+", tailscale_version), tailscale_version
           for name in ("tailscale", "tailscaled"):
               binary = Path("bin/aarch64") / name
               with binary.open("rb") as f:
