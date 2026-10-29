@@ -48,7 +48,7 @@ If you still want to try:
 Homey apps cannot create a kernel TUN device. This app runs Tailscale with `--tun=userspace-networking`.
 
 - Access **to Homey’s Tailscale IP** from other nodes works.
-- Local SOCKS5 (`127.0.0.1:1055`) and HTTP (`127.0.0.1:1056`) proxies are shown in the status panel.
+- Local SOCKS5 and HTTP proxies use `127.0.0.1:1055` and `127.0.0.1:1056` by default. If a port is occupied, the app selects a free loopback port. Use the actual addresses shown in the status panel; fallback ports can change after a restart.
 - Log lines like `fakeRouter.Set: not implemented` are **normal**.
 - The app keeps `tailscaled` alive with a watchdog and refreshes status every 30s.
 
@@ -56,6 +56,7 @@ Homey apps cannot create a kernel TUN device. This app runs Tailscale with `--tu
 
 | Symptom | What to check |
 |--------|----------------|
+| Proxy port already in use / socket never ready | Version 1.3.3 selects free local proxy ports automatically. Check the status panel for the active addresses. |
 | Never connects | Auth key valid and **reusable**? Tap Connect — errors now show in an alert. |
 | Connected but no subnet routes | **Accept routes** on? **Save & Reconnect**? Route approved? ACL/tags OK? |
 | Only see `/32` AllowedIPs | Expected for Homey’s own node. Check **Accepted subnet routes**. |
@@ -90,6 +91,7 @@ Homey apps cannot create a kernel TUN device. This app runs Tailscale with `--tu
 
 ### Si Homey no conecta
 
+- Desde la versión 1.3.3, si los puertos locales 1055/1056 están ocupados, la app elige otros libres. Consulta las direcciones activas en el panel de estado; pueden cambiar al reiniciar.
 - Auth key correcta y no caducada.
 - Tras cambiar rutas o hostname, siempre **Reconectar**.
 - El mensaje `fakeRouter.Set: not implemented` en los logs es normal (modo userspace).
