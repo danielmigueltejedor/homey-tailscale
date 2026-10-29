@@ -17,5 +17,9 @@
   "1.3.2": {
     "en": "Update bundled Tailscale from 1.96.2 to 1.104.2, including upstream fixes and security updates. No changes to existing settings, device capabilities or Flow cards.",
     "es": "Actualiza Tailscale integrado de 1.96.2 a 1.104.2, con las correcciones y actualizaciones de seguridad oficiales. Sin cambios en ajustes, capacidades ni tarjetas Flow."
+  },
+  "1.3.3": {
+    "en": "Fix startup when local proxy ports are already in use. Verify daemon readiness, improve process cleanup and clear stale connection status after failures.",
+    "es": "Corrige el arranque cuando los puertos de proxy locales están ocupados. Verifica que el servicio responde, mejora el cierre de procesos y elimina el estado de conexión obsoleto tras fallos."
   }
 }

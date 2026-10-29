@@ -55,7 +55,7 @@ jobs:
           python -m compileall -q app.py api.py drivers
           python -m unittest discover -s tests -v
       - name: Install Homey CLI
-        run: npm install --global --no-optional homey
+        run: npm install --global --include=optional homey
       - name: Validate for Homey App Store publishing
         run: homey app validate --level publish
       - name: Read app version

@@ -6,6 +6,9 @@ import os
 import json
 import ipaddress
 import time
+import socket
+import errno
+from collections import deque
 from typing import Any
 
 
@@ -107,6 +110,23 @@ def _resolve_bin_arch() -> tuple[str, str | None]:
     )
 
 
+def _select_proxy_addresses(socks_addr: str, http_addr: str) -> tuple[str, str]:
+    """Keep preferred loopback ports when free; ask the OS for alternatives otherwise."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socks, \
+            socket.socket(socket.AF_INET, socket.SOCK_STREAM) as http:
+        addresses = []
+        for listener, preferred in ((socks, socks_addr), (http, http_addr)):
+            host, port = preferred.rsplit(":", 1)
+            try:
+                listener.bind((host, int(port)))
+            except OSError as err:
+                if err.errno != errno.EADDRINUSE:
+                    raise
+                listener.bind((host, 0))
+            addresses.append(f"{host}:{listener.getsockname()[1]}")
+        return addresses[0], addresses[1]
+
+
 class App(app.App):
     async def on_init(self) -> None:
         self.proc = None
@@ -114,6 +134,9 @@ class App(app.App):
         self._stopping = False
         self._watchdog_task = None
         self._status_task = None
+        self._reader_tasks = []
+        self._daemon_stderr = deque(maxlen=10)
+        self._daemon_error = ""
         self.tailscale_status_driver = None
 
         self._reload_settings()
@@ -162,6 +185,8 @@ class App(app.App):
         self.log(f"Advertise routes: {self.advertise_routes}")
         self.log(f"Advertise tags: {self.advertise_tags}")
 
+        await self._clear_backend_state()
+
         if arch_err:
             self.error(arch_err)
             await self._set_runtime_state("error", arch_err)
@@ -177,11 +202,12 @@ class App(app.App):
             self.log("Subnet router enabled but no routes configured; nothing will be advertised")
 
         await self._save_status_text("Starting tailscaled...")
-        await self._ensure_daemon()
+        async with self._cmd_lock:
+            ready = await self._ensure_daemon()
 
-        if self.auto_connect and self.auth_key:
+        if ready and self.auto_connect and self.auth_key:
             await self.api_connect()
-        else:
+        elif ready:
             await self.api_refresh()
 
         self._watchdog_task = asyncio.create_task(self._watchdog_loop())
@@ -234,27 +260,78 @@ class App(app.App):
     async def _wait_for_socket(self, timeout: float = 15.0) -> bool:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if os.path.exists(self.socket_path):
-                if self.proc and self.proc.poll() is None:
-                    return True
+            if self._stopping or not self.proc or self.proc.poll() is not None:
+                return False
+            if await self._socket_ready():
+                return self.proc.poll() is None
             await asyncio.sleep(0.25)
         return False
 
+    async def _socket_ready(self) -> bool:
+        """A socket file alone may be stale or belong to a daemon still starting."""
+        writer = None
+        try:
+            async with asyncio.timeout(1):
+                reader, writer = await asyncio.open_unix_connection(self.socket_path)
+                writer.write(b"GET /localapi/v0/status HTTP/1.0\r\nHost: local-tailscaled.sock\r\n\r\n")
+                await writer.drain()
+                response = await reader.readline()
+                return response.startswith((b"HTTP/1.0 200 ", b"HTTP/1.1 200 "))
+        except (OSError, TimeoutError, ValueError):
+            return False
+        finally:
+            if writer is not None:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except OSError:
+                    pass
+
     async def _ensure_daemon(self) -> bool:
-        if self.proc and self.proc.poll() is None and os.path.exists(self.socket_path):
+        if self._stopping:
+            return False
+        if self.proc and self.proc.poll() is None and await self._socket_ready():
             return True
 
-        await self._start_daemon()
-        ready = await self._wait_for_socket()
-        if not ready:
-            await self._set_runtime_state("error", "tailscaled socket did not become ready")
-            return False
-        return True
+        # Port selection is a preflight check. Retry a bounded number of times
+        # if another process claims a selected port before tailscaled binds it.
+        for attempt in range(3):
+            try:
+                await self._start_daemon()
+                if await self._wait_for_socket():
+                    self._daemon_error = ""
+                    return True
+                code = self.proc.poll() if self.proc else None
+                await self._stop_daemon()
+                detail = self._daemon_stderr[-1] if self._daemon_stderr else ""
+                self._daemon_error = (
+                    f"tailscaled exited with code {code}: {detail}" if code is not None
+                    else "tailscaled LocalAPI did not become ready"
+                )
+                conflict = any("bind: address already in use" in line.lower()
+                               for line in self._daemon_stderr)
+                if conflict and attempt < 2 and not self._stopping:
+                    self.log("Proxy port was claimed during startup; selecting ports again")
+                    continue
+            except OSError as err:
+                self._daemon_error = f"Could not start tailscaled: {err}"
+                await self._stop_daemon()
+            break
+        await self._clear_backend_state()
+        await self._set_runtime_state("error", self._daemon_error)
+        return False
 
     async def _start_daemon(self) -> None:
         if self.proc and self.proc.poll() is None:
             self.log("tailscaled already running")
             return
+
+        await self._stop_daemon()
+        await self._clear_backend_state()
+        previous = (self.socks5_addr, self.http_proxy_addr)
+        self.socks5_addr, self.http_proxy_addr = _select_proxy_addresses(*previous)
+        if previous != (self.socks5_addr, self.http_proxy_addr):
+            self.log(f"Proxy port in use; using SOCKS5 {self.socks5_addr}, HTTP {self.http_proxy_addr}")
 
         # Clear stale socket from a previous crash
         try:
@@ -273,6 +350,7 @@ class App(app.App):
             f"--outbound-http-proxy-listen={self.http_proxy_addr}",
         ]
 
+        self._daemon_stderr = deque(maxlen=10)
         self.proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -281,11 +359,32 @@ class App(app.App):
             env=os.environ.copy(),
         )
 
+        self._reader_tasks = [
+            asyncio.create_task(self._read_stdout(self.proc)),
+            asyncio.create_task(self._read_stderr(self.proc, self._daemon_stderr)),
+        ]
         self.log(f"tailscaled PID: {self.proc.pid}")
         await self._set_runtime_state("starting", "Starting tailscaled...")
 
-        asyncio.create_task(self._read_stdout())
-        asyncio.create_task(self._read_stderr())
+    async def _stop_daemon(self) -> None:
+        """Reap our child before restarting; never terminate unrelated port owners."""
+        proc = self.proc
+        if proc is not None:
+            if proc.poll() is None:
+                try:
+                    proc.terminate()
+                except ProcessLookupError:
+                    pass
+                try:
+                    await asyncio.to_thread(proc.wait, 5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    await asyncio.to_thread(proc.wait, 3)
+            else:
+                await asyncio.to_thread(proc.wait)
+        await asyncio.gather(*self._reader_tasks, return_exceptions=True)
+        self._reader_tasks = []
+        self.proc = None
 
     async def _watchdog_loop(self) -> None:
         await asyncio.sleep(10)
@@ -301,7 +400,8 @@ class App(app.App):
                             up_cmd, err = self._build_up_cmd()
                             if up_cmd and not err:
                                 await self._run_cmd(up_cmd, "tailscale up (watchdog)", return_result=True)
-                        await self._refresh_runtime_state()
+                        if ok:
+                            await self._refresh_runtime_state()
             except Exception as err:
                 self.error(f"Watchdog error: {err}")
             await asyncio.sleep(20)
@@ -450,17 +550,34 @@ class App(app.App):
         return sorted(routes)
 
     async def _refresh_runtime_state(self) -> None:
+        if not self.proc or self.proc.poll() is not None:
+            await self._clear_backend_state()
+            await self._set_runtime_state("error", self._daemon_error or "tailscaled is not running")
+            return
+
         status_result = await self._run_cmd(
             [self.tailscale_path, f"--socket={self.socket_path}", "status", "--json"],
             "tailscale status --json",
             return_result=True
         )
 
+        # Failed status queries must invalidate persisted values such as Running.
+        if not status_result or status_result.returncode != 0:
+            await self._clear_backend_state()
+            detail = status_result.stderr.strip() if status_result else "Could not run tailscale status"
+            await self._set_runtime_state("error", detail or "Could not read tailscale status")
+            return
+
         ip_result = await self._run_cmd(
             [self.tailscale_path, f"--socket={self.socket_path}", "ip"],
             "tailscale ip",
             return_result=True
         )
+
+        if not self.proc or self.proc.poll() is not None:
+            await self._clear_backend_state()
+            await self._set_runtime_state("error", "tailscaled stopped while refreshing status")
+            return
 
         summary_lines = []
         runtime_state = "unknown"
@@ -530,9 +647,11 @@ class App(app.App):
                         runtime_state = backend_lower
 
                 except Exception as err:
+                    await self._clear_backend_state()
                     summary_lines.append(f"JSON status parse error: {err}")
                     runtime_state = "error"
             else:
+                await self._clear_backend_state()
                 summary_lines.append("status stdout empty")
                 if status_result.stderr:
                     summary_lines.append(status_result.stderr.strip())
@@ -541,7 +660,7 @@ class App(app.App):
             summary_lines.append("Could not run tailscale status")
             runtime_state = "error"
 
-        if ip_result:
+        if ip_result and ip_result.returncode == 0 and runtime_state != "error":
             summary_lines.append(f"ip rc: {ip_result.returncode}")
             ip_lines = [line.strip() for line in ip_result.stdout.splitlines() if line.strip()]
 
@@ -566,10 +685,21 @@ class App(app.App):
 
             summary_lines.append(f"IPv4: {ipv4 or '-'}")
             summary_lines.append(f"IPv6: {ipv6 or '-'}")
+        else:
+            await self.homey.settings.set("tailscale_ipv4", "")
+            await self.homey.settings.set("tailscale_ipv6", "")
 
         await self._save_status_text("\n".join(summary_lines) if summary_lines else "No data")
         await self._set_runtime_state(runtime_state)
         await self.push_state_to_devices()
+
+    async def _clear_backend_state(self) -> None:
+        for key, value in {
+            "backend_state": "", "tailnet_hostname": "", "tailnet_dns_name": "",
+            "tailnet_online": False, "tailscale_ipv4": "", "tailscale_ipv6": "",
+            "tailnet_allowed_ips": [], "accepted_routes": [], "peer_count": 0,
+        }.items():
+            await self.homey.settings.set(key, value)
 
     async def _set_runtime_state(self, state: str, status_text: str | None = None) -> None:
         previous_state = self.homey.settings.get("runtime_state") or "unknown"
@@ -620,7 +750,7 @@ class App(app.App):
         accepted = self.homey.settings.get("accepted_routes") or []
         runtime_state = self.homey.settings.get("runtime_state") or ""
 
-        connected = str(backend_state).lower() == "running" or str(runtime_state).lower() == "running"
+        connected = str(runtime_state).lower() == "running"
 
         if accepted:
             routes_text = "accepted: " + ", ".join(accepted)
@@ -684,17 +814,20 @@ class App(app.App):
             if return_result:
                 return None
 
-    async def _read_stdout(self) -> None:
+    async def _read_stdout(self, proc) -> None:
         try:
-            while self.proc and self.proc.stdout:
-                line = await asyncio.to_thread(self.proc.stdout.readline)
+            while proc.stdout:
+                line = await asyncio.to_thread(proc.stdout.readline)
                 if not line:
                     break
                 self.log(f"[TAILSCALED STDOUT] {line.strip()}")
         except Exception as err:
             self.error(f"Error reading stdout: {err}")
+        finally:
+            if proc.stdout:
+                proc.stdout.close()
 
-    async def _read_stderr(self) -> None:
+    async def _read_stderr(self, proc, stderr_lines) -> None:
         fatal_markers = (
             "fatal",
             "panic:",
@@ -703,11 +836,12 @@ class App(app.App):
             "permission denied",
         )
         try:
-            while self.proc and self.proc.stderr:
-                line = await asyncio.to_thread(self.proc.stderr.readline)
+            while proc.stderr:
+                line = await asyncio.to_thread(proc.stderr.readline)
                 if not line:
                     break
                 text = line.strip()
+                stderr_lines.append(text)
                 lower = text.lower()
                 if any(marker in lower for marker in fatal_markers):
                     self.error(f"[TAILSCALED STDERR] {text}")
@@ -716,6 +850,9 @@ class App(app.App):
                     self.log(f"[TAILSCALED STDERR] {text}")
         except Exception as err:
             self.error(f"Error reading stderr: {err}")
+        finally:
+            if proc.stderr:
+                proc.stderr.close()
 
     async def _flow_connect_listener(self, card_arguments, **trigger_kwargs):
         result = await self.api_connect()
@@ -734,40 +871,20 @@ class App(app.App):
         return True
 
     async def _flow_is_connected_listener(self, card_arguments, **trigger_kwargs):
-        backend_state = self.homey.settings.get("backend_state") or ""
         runtime_state = self.homey.settings.get("runtime_state") or ""
-        return backend_state.lower() == "running" or runtime_state.lower() == "running"
+        return runtime_state.lower() == "running"
 
     async def on_uninit(self) -> None:
         self.log("=== Tailscale for Homey | on_uninit ===")
         self._stopping = True
 
-        for task in (self._watchdog_task, self._status_task):
-            if task:
-                task.cancel()
+        tasks = [task for task in (self._watchdog_task, self._status_task) if task]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-        if self.proc and self.proc.poll() is None:
-            try:
-                await self._run_cmd(
-                    [self.tailscale_path, f"--socket={self.socket_path}", "down"],
-                    "tailscale down (uninit)",
-                    return_result=True,
-                )
-            except Exception:
-                pass
-
-            try:
-                self.log(f"Stopping process PID {self.proc.pid}")
-                self.proc.terminate()
-                try:
-                    await asyncio.to_thread(self.proc.wait, 5)
-                except subprocess.TimeoutExpired:
-                    self.log("tailscaled did not exit; killing")
-                    self.proc.kill()
-                    await asyncio.to_thread(self.proc.wait, 3)
-                self.log("Process stopped")
-            except Exception as err:
-                self.error(f"Error stopping process: {err}")
+        async with self._cmd_lock:
+            await self._stop_daemon()
 
 
 homey_export = App
