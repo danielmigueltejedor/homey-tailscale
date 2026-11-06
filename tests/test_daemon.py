@@ -1,5 +1,6 @@
 import asyncio
 import errno
+import os
 from collections import deque
 import importlib.util
 from pathlib import Path
@@ -178,7 +179,7 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
         self.app._watchdog_task = asyncio.create_task(asyncio.sleep(100))
         self.app._status_task = asyncio.create_task(asyncio.sleep(100))
         await self.app.on_uninit()
-        self.assertIsNotNone(proc.poll())
+        self.assertIsNotNone(proc.returncode)
         self.assertIsNone(self.app.proc)
         self.assertTrue(self.app._watchdog_task.cancelled())
         self.assertTrue(self.app._status_task.cancelled())
@@ -246,6 +247,46 @@ class DaemonTests(unittest.IsolatedAsyncioTestCase):
         self.app._run_cmd = AsyncMock(side_effect=stopped_during_query)
         await self.app.api_refresh()
         self.assert_cleared()
+
+
+class HelperTests(unittest.TestCase):
+    def test_cgnat_and_host_routes_are_not_subnet_routes(self):
+        self.assertFalse(app_module._is_subnet_route("100.64.1.0/24"))
+        self.assertFalse(app_module._is_subnet_route("100.64.0.1/32"))
+        self.assertFalse(app_module._is_subnet_route("fd7a:115c:a1e0::1/128"))
+        self.assertTrue(app_module._is_subnet_route("192.168.1.0/24"))
+        self.assertEqual(str(app_module._TAILSCALE_CGNAT_V4), "100.64.0.0/10")
+
+    def test_resolve_state_dir_uses_first_writable_candidate(self):
+        with tempfile.TemporaryDirectory() as base:
+            userdata = str(Path(base) / "userdata" / "tailscale-homey")
+
+            def fake_prepare(path):
+                return userdata if path == "/userdata/tailscale-homey" else None
+
+            with patch.object(app_module, "_prepare_state_dir", side_effect=fake_prepare):
+                self.assertEqual(app_module._resolve_state_dir(), userdata)
+
+    def test_resolve_state_dir_falls_back_to_private_temp(self):
+        with patch.object(app_module, "_prepare_state_dir", return_value=None):
+            fallback = app_module._resolve_state_dir()
+        try:
+            self.assertTrue(fallback.startswith(tempfile.gettempdir()))
+            self.assertIn("tailscale-homey-", os.path.basename(fallback))
+            self.assertTrue(os.path.isdir(fallback))
+            self.assertEqual(os.stat(fallback).st_mode & 0o777, 0o700)
+        finally:
+            os.rmdir(fallback)
+
+    def test_prepare_state_dir_sets_owner_only_mode(self):
+        with tempfile.TemporaryDirectory() as base:
+            path = Path(base) / "state"
+            prepared = app_module._prepare_state_dir(str(path))
+            self.assertEqual(prepared, str(path))
+            self.assertEqual(os.stat(path).st_mode & 0o777, 0o700)
+
+    def test_prepare_state_dir_returns_none_on_oserror(self):
+        self.assertIsNone(app_module._prepare_state_dir("/no/such/root/tailscale-homey"))
 
 
 if __name__ == "__main__":

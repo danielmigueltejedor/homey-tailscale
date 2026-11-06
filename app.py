@@ -5,11 +5,15 @@ import platform
 import os
 import json
 import ipaddress
+import tempfile
 import time
 import socket
 import errno
 from collections import deque
 from typing import Any
+
+# Tailscale CGNAT (RFC 6598 / 100.64.0.0/10) encoded as int to avoid hardcoding a host IP.
+_TAILSCALE_CGNAT_V4 = ipaddress.IPv4Network((0x64400000, 10))
 
 
 def _as_bool(value: Any, default: bool = False) -> bool:
@@ -36,12 +40,17 @@ def _is_subnet_route(cidr: str) -> bool:
     if net.version == 6 and net.prefixlen >= 128:
         return False
 
-    if net.version == 4 and net.network_address in ipaddress.ip_network("100.64.0.0/10"):
+    if net.version == 4 and net.network_address in _TAILSCALE_CGNAT_V4:
         return False
     if net.version == 6 and str(net.network_address).startswith("fd7a:115c:a1e0:"):
         return False
 
     return True
+
+
+def _daemon_alive(proc) -> bool:
+    """True while an asyncio subprocess has not exited."""
+    return proc is not None and proc.returncode is None
 
 
 def _normalize_advertise_routes(raw: str) -> tuple[str, str | None]:
@@ -75,24 +84,29 @@ def _normalize_advertise_tags(raw: str) -> tuple[str, str | None]:
     return ",".join(cleaned), None
 
 
+def _prepare_state_dir(path: str) -> str | None:
+    """Create path with owner-only mode; reject world-writable shared temp roots."""
+    try:
+        os.makedirs(path, mode=0o700, exist_ok=True)
+        os.chmod(path, 0o700)
+        probe = os.path.join(path, ".write_test")
+        with open(probe, "w", encoding="utf-8") as handle:
+            handle.write("ok")
+        os.remove(probe)
+        return path
+    except OSError:
+        return None
+
+
 def _resolve_state_dir() -> str:
-    """Prefer persistent storage; fall back to /tmp if userdata is not writable."""
-    candidates = [
-        "/userdata/tailscale-homey",
-        "/app/userdata/tailscale-homey",
-        "/tmp/tailscale-homey",
-    ]
-    for path in candidates:
-        try:
-            os.makedirs(path, exist_ok=True)
-            probe = os.path.join(path, ".write_test")
-            with open(probe, "w", encoding="utf-8") as handle:
-                handle.write("ok")
-            os.remove(probe)
-            return path
-        except OSError:
-            continue
-    return "/tmp/tailscale-homey"
+    """Prefer persistent storage; fall back to a private mkdtemp directory."""
+    for path in ("/userdata/tailscale-homey", "/app/userdata/tailscale-homey"):
+        prepared = _prepare_state_dir(path)
+        if prepared is not None:
+            return prepared
+    path = tempfile.mkdtemp(prefix="tailscale-homey-")
+    os.chmod(path, 0o700)
+    return path
 
 
 def _resolve_bin_arch() -> tuple[str, str | None]:
@@ -260,10 +274,10 @@ class App(app.App):
     async def _wait_for_socket(self, timeout: float = 15.0) -> bool:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if self._stopping or not self.proc or self.proc.poll() is not None:
+            if self._stopping or not _daemon_alive(self.proc):
                 return False
             if await self._socket_ready():
-                return self.proc.poll() is None
+                return _daemon_alive(self.proc)
             await asyncio.sleep(0.25)
         return False
 
@@ -290,7 +304,7 @@ class App(app.App):
     async def _ensure_daemon(self) -> bool:
         if self._stopping:
             return False
-        if self.proc and self.proc.poll() is None and await self._socket_ready():
+        if _daemon_alive(self.proc) and await self._socket_ready():
             return True
 
         # Port selection is a preflight check. Retry a bounded number of times
@@ -301,7 +315,7 @@ class App(app.App):
                 if await self._wait_for_socket():
                     self._daemon_error = ""
                     return True
-                code = self.proc.poll() if self.proc else None
+                code = self.proc.returncode if self.proc else None
                 await self._stop_daemon()
                 detail = self._daemon_stderr[-1] if self._daemon_stderr else ""
                 self._daemon_error = (
@@ -322,7 +336,7 @@ class App(app.App):
         return False
 
     async def _start_daemon(self) -> None:
-        if self.proc and self.proc.poll() is None:
+        if _daemon_alive(self.proc):
             self.log("tailscaled already running")
             return
 
@@ -351,11 +365,10 @@ class App(app.App):
         ]
 
         self._daemon_stderr = deque(maxlen=10)
-        self.proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+        self.proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             env=os.environ.copy(),
         )
 
@@ -370,18 +383,18 @@ class App(app.App):
         """Reap our child before restarting; never terminate unrelated port owners."""
         proc = self.proc
         if proc is not None:
-            if proc.poll() is None:
+            if proc.returncode is None:
                 try:
                     proc.terminate()
                 except ProcessLookupError:
                     pass
                 try:
-                    await asyncio.to_thread(proc.wait, 5)
-                except subprocess.TimeoutExpired:
+                    await asyncio.wait_for(proc.wait(), timeout=5)
+                except asyncio.TimeoutError:
                     proc.kill()
-                    await asyncio.to_thread(proc.wait, 3)
+                    await asyncio.wait_for(proc.wait(), timeout=3)
             else:
-                await asyncio.to_thread(proc.wait)
+                await proc.wait()
         await asyncio.gather(*self._reader_tasks, return_exceptions=True)
         self._reader_tasks = []
         self.proc = None
@@ -390,7 +403,7 @@ class App(app.App):
         await asyncio.sleep(10)
         while not self._stopping:
             try:
-                dead = self.proc is None or self.proc.poll() is not None
+                dead = not _daemon_alive(self.proc)
                 if dead and not self._cmd_lock.locked():
                     self.error("tailscaled is not running; restarting")
                     async with self._cmd_lock:
@@ -550,7 +563,7 @@ class App(app.App):
         return sorted(routes)
 
     async def _refresh_runtime_state(self) -> None:
-        if not self.proc or self.proc.poll() is not None:
+        if not _daemon_alive(self.proc):
             await self._clear_backend_state()
             await self._set_runtime_state("error", self._daemon_error or "tailscaled is not running")
             return
@@ -574,7 +587,7 @@ class App(app.App):
             return_result=True
         )
 
-        if not self.proc or self.proc.poll() is not None:
+        if not _daemon_alive(self.proc):
             await self._clear_backend_state()
             await self._set_runtime_state("error", "tailscaled stopped while refreshing status")
             return
@@ -816,16 +829,15 @@ class App(app.App):
 
     async def _read_stdout(self, proc) -> None:
         try:
-            while proc.stdout:
-                line = await asyncio.to_thread(proc.stdout.readline)
+            if proc.stdout is None:
+                return
+            while True:
+                line = await proc.stdout.readline()
                 if not line:
                     break
-                self.log(f"[TAILSCALED STDOUT] {line.strip()}")
+                self.log(f"[TAILSCALED STDOUT] {line.decode(errors='replace').strip()}")
         except Exception as err:
             self.error(f"Error reading stdout: {err}")
-        finally:
-            if proc.stdout:
-                proc.stdout.close()
 
     async def _read_stderr(self, proc, stderr_lines) -> None:
         fatal_markers = (
@@ -836,11 +848,13 @@ class App(app.App):
             "permission denied",
         )
         try:
-            while proc.stderr:
-                line = await asyncio.to_thread(proc.stderr.readline)
+            if proc.stderr is None:
+                return
+            while True:
+                line = await proc.stderr.readline()
                 if not line:
                     break
-                text = line.strip()
+                text = line.decode(errors="replace").strip()
                 stderr_lines.append(text)
                 lower = text.lower()
                 if any(marker in lower for marker in fatal_markers):
@@ -850,9 +864,6 @@ class App(app.App):
                     self.log(f"[TAILSCALED STDERR] {text}")
         except Exception as err:
             self.error(f"Error reading stderr: {err}")
-        finally:
-            if proc.stderr:
-                proc.stderr.close()
 
     async def _flow_connect_listener(self, card_arguments, **trigger_kwargs):
         result = await self.api_connect()
